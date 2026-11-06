@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { requireAccess } from "../../server/access";
-import { json } from "../../server/http";
-import { BUCKET, db, ownerId } from "../../server/supabase";
+import { requireAccess } from "../../server/access.js";
+import { json } from "../../server/http.js";
+import { BUCKET, db, ownerId } from "../../server/supabase.js";
 
 /** Crea la ficha vacía de una prenda y devuelve una URL firmada para subir su foto. */
 export async function POST(req: Request): Promise<Response> {

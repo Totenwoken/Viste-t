@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
-import { GARMENT_TYPES, SEASONS } from "../shared/garment";
+import { GARMENT_TYPES, SEASONS } from "../shared/garment.js";
 
 /** Lo que le pedimos a Claude: sin restricciones numéricas para que el formato estructurado sea simple. */
 const TaggingOutputSchema = z.object({

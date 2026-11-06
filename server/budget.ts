@@ -1,6 +1,6 @@
-import type { Task } from "./claude";
-import { json } from "./http";
-import { db, ownerId } from "./supabase";
+import type { Task } from "./claude.js";
+import { json } from "./http.js";
+import { db, ownerId } from "./supabase.js";
 
 /** Precio en dólares por millón de tokens. */
 export const PRICES: Record<string, { in: number; out: number }> = {

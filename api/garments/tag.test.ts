@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { POST } from "./tag";
+import { POST } from "./tag.js";
 
 const state = {
   row: null as Record<string, unknown> | null,
@@ -10,7 +10,7 @@ const state = {
   parseCalls: 0,
 };
 
-vi.mock("../../server/supabase", () => ({
+vi.mock("../../server/supabase.js", () => ({
   BUCKET: "garments",
   ownerId: () => "owner-1",
   db: () => ({
@@ -41,7 +41,7 @@ vi.mock("../../server/supabase", () => ({
   }),
 }));
 
-vi.mock("../../server/budget", () => ({
+vi.mock("../../server/budget.js", () => ({
   checkBudget: async () =>
     state.overBudget ? new Response('{"error":"budget_exceeded"}', { status: 402 }) : null,
   recordUsage: async (...args: unknown[]) => {
@@ -49,7 +49,7 @@ vi.mock("../../server/budget", () => ({
   },
 }));
 
-vi.mock("../../server/claude", () => ({
+vi.mock("../../server/claude.js", () => ({
   modelFor: () => "claude-haiku-5-5",
   anthropic: () => ({
     messages: {

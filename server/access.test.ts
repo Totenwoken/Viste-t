@@ -1,6 +1,6 @@
 // @vitest-environment node
-import { requireAccess } from "./access";
-import { GET } from "../api/auth/check";
+import { requireAccess } from "./access.js";
+import { GET } from "../api/auth/check.js";
 
 beforeEach(() => {
   process.env.ACCESS_CODE = "armario123";

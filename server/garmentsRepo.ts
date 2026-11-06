@@ -1,4 +1,4 @@
-import type { Garment, GarmentPatch } from "../shared/garment";
+import type { Garment, GarmentPatch } from "../shared/garment.js";
 
 export interface GarmentRow {
   id: string;

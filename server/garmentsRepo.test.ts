@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { garmentPatchToRow, rowToGarment } from "./garmentsRepo";
+import { garmentPatchToRow, rowToGarment } from "./garmentsRepo.js";
 
 test("garmentPatchToRow mapea a snake_case", () => {
   expect(garmentPatchToRow({ suitPairId: "a", jacketCombinable: true })).toEqual({ suit_pair_id: "a", jacket_combinable: true });

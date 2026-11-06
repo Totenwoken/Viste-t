@@ -1,9 +1,9 @@
 // @vitest-environment node
-import { POST } from "./create";
+import { POST } from "./create.js";
 
 const state = { inserted: [] as Record<string, unknown>[], signedPaths: [] as string[] };
 
-vi.mock("../../server/supabase", () => ({
+vi.mock("../../server/supabase.js", () => ({
   BUCKET: "garments",
   ownerId: () => "owner-1",
   db: () => ({

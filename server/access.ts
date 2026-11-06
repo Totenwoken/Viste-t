@@ -1,5 +1,5 @@
 import { createHash, timingSafeEqual } from "node:crypto";
-import { json } from "./http";
+import { json } from "./http.js";
 
 const digest = (s: string) => createHash("sha256").update(s, "utf8").digest();
 

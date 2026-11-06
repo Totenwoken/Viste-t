@@ -1,10 +1,10 @@
 // @vitest-environment node
-import { DELETE, GET, PATCH } from "./index";
-import { fakeDb, garmentRow } from "../../server/testing/fakeDb";
+import { DELETE, GET, PATCH } from "./index.js";
+import { fakeDb, garmentRow } from "../../server/testing/fakeDb.js";
 
 let fake: ReturnType<typeof fakeDb>;
 
-vi.mock("../../server/supabase", () => ({
+vi.mock("../../server/supabase.js", () => ({
   BUCKET: "garments",
   ownerId: () => "owner-1",
   db: () => fake.client,

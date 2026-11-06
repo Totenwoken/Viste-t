@@ -1,8 +1,8 @@
-import { GarmentPatchSchema } from "../../shared/garment";
-import { requireAccess } from "../../server/access";
-import { garmentPatchToRow, rowToGarment, type GarmentRow } from "../../server/garmentsRepo";
-import { json } from "../../server/http";
-import { BUCKET, db, ownerId } from "../../server/supabase";
+import { GarmentPatchSchema } from "../../shared/garment.js";
+import { requireAccess } from "../../server/access.js";
+import { garmentPatchToRow, rowToGarment, type GarmentRow } from "../../server/garmentsRepo.js";
+import { json } from "../../server/http.js";
+import { BUCKET, db, ownerId } from "../../server/supabase.js";
 
 const SIGNED_URL_TTL = 3600;
 

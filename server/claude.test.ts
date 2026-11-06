@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { modelFor } from "./claude";
+import { modelFor } from "./claude.js";
 
 afterEach(() => {
   delete process.env.MODEL_TAGGING;

@@ -1,11 +1,11 @@
 // @vitest-environment node
-import { checkBudget, costUsd, monthStartUtc, recordUsage } from "./budget";
+import { checkBudget, costUsd, monthStartUtc, recordUsage } from "./budget.js";
 
 const rows: { cost_usd: number }[] = [];
 const inserted: Record<string, unknown>[] = [];
 const gteCalls: string[] = [];
 
-vi.mock("./supabase", () => ({
+vi.mock("./supabase.js", () => ({
   ownerId: () => "owner-1",
   db: () => ({
     from: () => ({

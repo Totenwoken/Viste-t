@@ -1,11 +1,11 @@
 import { z } from "zod";
-import { requireAccess } from "../../server/access";
-import { checkBudget, recordUsage } from "../../server/budget";
-import { anthropic, modelFor } from "../../server/claude";
-import { rowToGarment, type GarmentRow } from "../../server/garmentsRepo";
-import { json } from "../../server/http";
-import { BUCKET, db, ownerId } from "../../server/supabase";
-import { buildTaggingRequest, interpretTagging, type TaggingMediaType } from "../../server/tagging";
+import { requireAccess } from "../../server/access.js";
+import { checkBudget, recordUsage } from "../../server/budget.js";
+import { anthropic, modelFor } from "../../server/claude.js";
+import { rowToGarment, type GarmentRow } from "../../server/garmentsRepo.js";
+import { json } from "../../server/http.js";
+import { BUCKET, db, ownerId } from "../../server/supabase.js";
+import { buildTaggingRequest, interpretTagging, type TaggingMediaType } from "../../server/tagging.js";
 
 const Body = z.object({ garmentId: z.string().min(1) });
 

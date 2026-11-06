@@ -1,4 +1,4 @@
-import { GARMENT_TYPES, GarmentPatchSchema, layerOf } from "./garment";
+import { GARMENT_TYPES, GarmentPatchSchema, layerOf } from "./garment.js";
 
 test("layerOf clasifica cada tipo", () => {
   expect(layerOf("camisa")).toBe("top");

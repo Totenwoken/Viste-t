@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { buildTaggingRequest, interpretTagging } from "./tagging";
+import { buildTaggingRequest, interpretTagging } from "./tagging.js";
 
 const validTags = {
   is_garment: true, type: "camisa", description: "camisa oxford azul claro", colors: ["azul claro"],

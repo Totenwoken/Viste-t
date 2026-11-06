@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { requireAccess } from "../../server/access";
-import { json } from "../../server/http";
-import { BUCKET, db, ownerId } from "../../server/supabase";
+import { requireAccess } from "../../server/access.js";
+import { json } from "../../server/http.js";
+import { BUCKET, db, ownerId } from "../../server/supabase.js";
 
 const Body = z.object({ garmentId: z.string().min(1) });
 
