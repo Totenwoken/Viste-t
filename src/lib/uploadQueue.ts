@@ -1,0 +1,191 @@
+import { del as idbDel, get as idbGet, set as idbSet } from "idb-keyval";
+import { apiFetch, BudgetExceededError, UnauthorizedError } from "./api";
+import { ImageDecodeError, prepareGarmentImage, uploadToSignedUrl } from "./image";
+
+export type QueueItemStatus = "queued" | "created" | "uploaded" | "done" | "error";
+
+export interface QueueItem {
+  id: string;
+  status: QueueItemStatus;
+  garmentId?: string;
+  /** La foto guardada ya está comprimida y sin fondo. */
+  prepared?: boolean;
+  error?: string;
+  /** Estado desde el que se reintenta si está en error. */
+  failedAt?: Exclude<QueueItemStatus, "done" | "error">;
+}
+
+export type QueueState = "idle" | "running" | "paused_budget" | "paused_auth";
+
+export interface QueueStore {
+  get(key: string): Promise<unknown>;
+  set(key: string, value: unknown): Promise<void>;
+  del(key: string): Promise<void>;
+}
+
+export interface QueueDeps {
+  prepare(b: Blob): Promise<Blob>;
+  create(): Promise<{ garmentId: string; uploadUrl: string }>;
+  upload(url: string, b: Blob): Promise<void>;
+  tag(garmentId: string): Promise<void>;
+  renewUploadUrl(garmentId: string): Promise<string>;
+  store: QueueStore;
+}
+
+const QUEUE_KEY = "vistet.queue";
+const blobKey = (id: string) => `vistet.blob.${id}`;
+
+export function createUploadQueue(deps: QueueDeps) {
+  let items: QueueItem[] = [];
+  let state: QueueState = "idle";
+  let loaded = false;
+  let running: Promise<void> | null = null;
+  const listeners = new Set<() => void>();
+
+  const notify = () => listeners.forEach((fn) => fn());
+  const persist = async () => {
+    await deps.store.set(QUEUE_KEY, items);
+    notify();
+  };
+  const update = async (item: QueueItem, patch: Partial<QueueItem>) => {
+    Object.assign(item, patch);
+    items = [...items];
+    await persist();
+  };
+  const load = async () => {
+    if (loaded) return;
+    const saved = (await deps.store.get(QUEUE_KEY)) as QueueItem[] | undefined;
+    items = Array.isArray(saved) ? saved.map((i) => ({ ...i })) : [];
+    loaded = true;
+  };
+
+  async function processItem(item: QueueItem): Promise<void> {
+    let uploadUrl: string | undefined;
+    if (item.status === "queued") {
+      if (!item.prepared) {
+        const original = (await deps.store.get(blobKey(item.id))) as Blob | undefined;
+        if (!original) throw new ImageDecodeError();
+        await deps.store.set(blobKey(item.id), await deps.prepare(original));
+        await update(item, { prepared: true });
+      }
+      const created = await deps.create();
+      uploadUrl = created.uploadUrl;
+      await update(item, { status: "created", garmentId: created.garmentId });
+    }
+    if (item.status === "created") {
+      const blob = (await deps.store.get(blobKey(item.id))) as Blob | undefined;
+      if (!blob) throw new ImageDecodeError();
+      await deps.upload(uploadUrl ?? (await deps.renewUploadUrl(item.garmentId!)), blob);
+      await update(item, { status: "uploaded" });
+    }
+    if (item.status === "uploaded") {
+      await deps.tag(item.garmentId!);
+      await deps.store.del(blobKey(item.id));
+      await update(item, { status: "done" });
+    }
+  }
+
+  async function runLoop() {
+    state = "running";
+    notify();
+    for (;;) {
+      const next = items.find((i) => i.status !== "done" && i.status !== "error");
+      if (!next) break;
+      try {
+        await processItem(next);
+      } catch (e) {
+        if (e instanceof BudgetExceededError) {
+          state = "paused_budget";
+          notify();
+          return;
+        }
+        if (e instanceof UnauthorizedError) {
+          state = "paused_auth";
+          notify();
+          return;
+        }
+        const message = e instanceof ImageDecodeError ? e.message : "No se ha podido subir. Reintenta.";
+        // next.status es la etapa en la que falló (processItem la avanza paso a paso).
+        await update(next, { status: "error", error: message, failedAt: next.status as NonNullable<QueueItem["failedAt"]> });
+      }
+    }
+    state = "idle";
+    notify();
+  }
+
+  function run(): Promise<void> {
+    if (!running) running = runLoop().finally(() => (running = null));
+    return running;
+  }
+
+  return {
+    async add(files: Blob[]): Promise<void> {
+      await load();
+      for (const f of files) {
+        const id = crypto.randomUUID();
+        await deps.store.set(blobKey(id), f);
+        items = [...items, { id, status: "queued" }];
+      }
+      await persist();
+      // Si la cola ya está en marcha, el bucle recoge los nuevos elementos.
+      await run();
+    },
+    async resume(): Promise<void> {
+      await load();
+      notify();
+      await run();
+    },
+    items: (): QueueItem[] => items,
+    state: (): QueueState => state,
+    subscribe(fn: () => void): () => void {
+      listeners.add(fn);
+      return () => listeners.delete(fn);
+    },
+    async retry(id: string): Promise<void> {
+      await load();
+      const item = items.find((i) => i.id === id);
+      if (!item || item.status !== "error") return;
+      await update(item, { status: item.failedAt ?? "queued", error: undefined, failedAt: undefined });
+      await run();
+    },
+    async clearDone(): Promise<void> {
+      await load();
+      items = items.filter((i) => i.status !== "done");
+      await persist();
+    },
+  };
+}
+
+export type UploadQueue = ReturnType<typeof createUploadQueue>;
+
+async function readJson<T>(res: Response): Promise<T> {
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return (await res.json()) as T;
+}
+
+export function defaultQueueDeps(): QueueDeps {
+  const post = (path: string, body?: unknown) =>
+    apiFetch(path, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  return {
+    prepare: prepareGarmentImage,
+    create: async () => readJson(await post("/api/garments/create")),
+    upload: uploadToSignedUrl,
+    tag: async (garmentId) => {
+      await readJson(await post("/api/garments/tag", { garmentId }));
+    },
+    renewUploadUrl: async (garmentId) =>
+      (await readJson<{ uploadUrl: string }>(await post("/api/garments/upload-url", { garmentId }))).uploadUrl,
+    store: { get: (k) => idbGet(k), set: (k, v) => idbSet(k, v), del: (k) => idbDel(k) },
+  };
+}
+
+let shared: UploadQueue | null = null;
+/** Cola única de la app. */
+export function getUploadQueue(): UploadQueue {
+  if (!shared) shared = createUploadQueue(defaultQueueDeps());
+  return shared;
+}
