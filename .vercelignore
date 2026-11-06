@@ -1,0 +1,6 @@
+api/**/*.test.ts
+**/*.test.ts
+**/*.test.tsx
+server/testing
+.superpowers
+docs

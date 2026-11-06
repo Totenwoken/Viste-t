@@ -21,7 +21,12 @@ export default defineConfig({
           { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
         ],
       },
-      workbox: { navigateFallbackDenylist: [/^\/api\//] },
+      workbox: {
+        navigateFallbackDenylist: [/^\/api\//],
+        // El modelo para quitar fondos (wasm, ~24 MB) no se precachea: se descarga la primera vez que se usa.
+        globPatterns: ["**/*.{js,css,html,png,svg,ico,webmanifest}"],
+        globIgnores: ["**/ort*"],
+      },
     }),
   ],
   test: {
