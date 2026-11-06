@@ -62,9 +62,12 @@ export async function PATCH(req: Request): Promise<Response> {
     }
   }
 
+  // Una prenda que Claude no pudo analizar sale de "Revisar" en cuanto tiene tipo (corrección manual).
+  const fixedByHand = current.status === "error" && (patch.type ?? current.type) ? { status: "ready", error: null } : {};
+
   const { data, error } = await db()
     .from("garments")
-    .update({ ...garmentPatchToRow(patch), updated_at: new Date().toISOString() })
+    .update({ ...garmentPatchToRow(patch), ...fixedByHand, updated_at: new Date().toISOString() })
     .eq("id", id)
     .eq("user_id", ownerId())
     .select()

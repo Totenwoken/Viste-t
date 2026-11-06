@@ -51,13 +51,22 @@ export function UploadPanel({ queue, onProgress }: { queue: UploadQueue; onProgr
         </p>
       )}
       {state === "paused_auth" && <p className="error-text">Vuelve a introducir el código de acceso para continuar.</p>}
+      {state === "paused_offline" && (
+        <p className="error-text">Sin conexión. Las fotos pendientes se seguirán procesando cuando vuelva la conexión.</p>
+      )}
 
+      {errors.length > 1 && (
+        <button type="button" className="btn" onClick={() => void queue.retryAll()}>Reintentar todos</button>
+      )}
       {errors.length > 0 && (
         <ul className="upload-errors">
           {errors.map((i) => (
             <li key={i.id}>
               <span>{i.error}</span>
-              <button type="button" className="btn" onClick={() => void queue.retry(i.id)}>Reintentar</button>
+              <span className="actions">
+                <button type="button" className="btn" onClick={() => void queue.retry(i.id)}>Reintentar</button>
+                <button type="button" className="btn" onClick={() => void queue.discard(i.id)}>Descartar</button>
+              </span>
             </li>
           ))}
         </ul>

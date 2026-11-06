@@ -11,6 +11,8 @@ function fakeQueue(items: QueueItem[], state: QueueState = "idle") {
     resume: vi.fn(async () => {}),
     retry: vi.fn(async () => {}),
     clearDone: vi.fn(async () => {}),
+    discard: vi.fn(async () => {}),
+    retryAll: vi.fn(async () => {}),
     items: () => items,
     state: () => state,
     subscribe: () => () => {},
@@ -52,4 +54,26 @@ test("elegir fotos las añade a la cola", async () => {
   const file = new File(["x"], "camisa.jpg", { type: "image/jpeg" });
   await userEvent.upload(screen.getByLabelText("Añadir prendas"), [file]);
   expect(q.add).toHaveBeenCalledWith([file]);
+});
+
+test("'Descartar' quita un elemento en error", async () => {
+  const q = fakeQueue([{ id: "x", status: "error", error: "No se puede leer esta foto" }]);
+  render(<UploadPanel queue={q} />);
+  await userEvent.click(screen.getByRole("button", { name: "Descartar" }));
+  expect(q.discard).toHaveBeenCalledWith("x");
+});
+
+test("con varios errores aparece 'Reintentar todos'", async () => {
+  const q = fakeQueue([
+    { id: "x", status: "error", error: "No se ha podido subir. Reintenta." },
+    { id: "y", status: "error", error: "No se ha podido subir. Reintenta." },
+  ]);
+  render(<UploadPanel queue={q} />);
+  await userEvent.click(screen.getByRole("button", { name: "Reintentar todos" }));
+  expect(q.retryAll).toHaveBeenCalled();
+});
+
+test("sin conexión muestra el aviso", () => {
+  render(<UploadPanel queue={fakeQueue([{ id: "1", status: "queued" }], "paused_offline")} />);
+  expect(screen.getByText(/Sin conexión/)).toBeInTheDocument();
 });

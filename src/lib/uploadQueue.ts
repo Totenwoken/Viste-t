@@ -15,7 +15,13 @@ export interface QueueItem {
   failedAt?: Exclude<QueueItemStatus, "done" | "error">;
 }
 
-export type QueueState = "idle" | "running" | "paused_budget" | "paused_auth";
+export type QueueState = "idle" | "running" | "paused_budget" | "paused_auth" | "paused_offline";
+
+/** Error de red de fetch (sin conexión): Chrome "Failed to fetch", Safari "Load failed", Firefox "NetworkError…". */
+export function isOfflineError(e: unknown): boolean {
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return true;
+  return e instanceof TypeError && /fetch|load failed|network/i.test(e.message);
+}
 
 export interface QueueStore {
   get(key: string): Promise<unknown>;
@@ -29,6 +35,8 @@ export interface QueueDeps {
   upload(url: string, b: Blob): Promise<void>;
   tag(garmentId: string): Promise<void>;
   renewUploadUrl(garmentId: string): Promise<string>;
+  /** Borra la prenda pendiente creada para un elemento que se descarta. */
+  discardGarment(garmentId: string): Promise<void>;
   store: QueueStore;
 }
 
@@ -104,6 +112,12 @@ export function createUploadQueue(deps: QueueDeps) {
           notify();
           return;
         }
+        if (isOfflineError(e)) {
+          // Sin conexión: el elemento se queda en su etapa y se sigue al volver la conexión.
+          state = "paused_offline";
+          notify();
+          return;
+        }
         const message = e instanceof ImageDecodeError ? e.message : "No se ha podido subir. Reintenta.";
         // next.status es la etapa en la que falló (processItem la avanza paso a paso).
         await update(next, { status: "error", error: message, failedAt: next.status as NonNullable<QueueItem["failedAt"]> });
@@ -116,6 +130,12 @@ export function createUploadQueue(deps: QueueDeps) {
   function run(): Promise<void> {
     if (!running) running = runLoop().finally(() => (running = null));
     return running;
+  }
+
+  if (typeof window !== "undefined") {
+    window.addEventListener("online", () => {
+      if (state === "paused_offline") void run();
+    });
   }
 
   return {
@@ -148,6 +168,23 @@ export function createUploadQueue(deps: QueueDeps) {
       await update(item, { status: item.failedAt ?? "queued", error: undefined, failedAt: undefined });
       await run();
     },
+    async retryAll(): Promise<void> {
+      await load();
+      items = items.map((i) =>
+        i.status === "error" ? { ...i, status: i.failedAt ?? "queued", error: undefined, failedAt: undefined } : i,
+      );
+      await persist();
+      await run();
+    },
+    async discard(id: string): Promise<void> {
+      await load();
+      const item = items.find((i) => i.id === id);
+      if (!item || item.status !== "error") return;
+      await deps.store.del(blobKey(id));
+      items = items.filter((i) => i.id !== id);
+      await persist();
+      if (item.garmentId) await deps.discardGarment(item.garmentId).catch(() => {});
+    },
     async clearDone(): Promise<void> {
       await load();
       items = items.filter((i) => i.status !== "done");
@@ -174,6 +211,9 @@ export function defaultQueueDeps(): QueueDeps {
     prepare: prepareGarmentImage,
     create: async () => readJson(await post("/api/garments/create")),
     upload: uploadToSignedUrl,
+    discardGarment: async (garmentId) => {
+      await apiFetch(`/api/garments?id=${encodeURIComponent(garmentId)}`, { method: "DELETE" });
+    },
     tag: async (garmentId) => {
       await readJson(await post("/api/garments/tag", { garmentId }));
     },

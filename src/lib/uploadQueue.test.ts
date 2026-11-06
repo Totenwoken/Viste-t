@@ -22,6 +22,7 @@ function fakeDeps(over: Partial<QueueDeps> = {}, store = memoryStore()) {
     upload: vi.fn(async (_u: string, _b: Blob) => {}),
     tag: vi.fn(async (_id: string) => {}),
     renewUploadUrl: vi.fn(async (id: string) => `https://renew/${id}`),
+    discardGarment: vi.fn(async (_id: string) => {}),
     store,
     ...over,
   };
@@ -153,4 +154,68 @@ test("subscribe avisa de los cambios", async () => {
   q.subscribe(fn);
   await q.add([photo("a")]);
   expect(fn).toHaveBeenCalled();
+});
+
+test("discard(id) quita un elemento en error, borra su foto y su prenda pendiente", async () => {
+  const store = memoryStore();
+  const deps = fakeDeps(
+    {
+      upload: vi.fn(async () => {
+        throw new Error("500");
+      }),
+    },
+    store,
+  );
+  const q = createUploadQueue(deps);
+  await q.add([photo("a")]);
+  const [item] = q.items();
+  expect(item).toMatchObject({ status: "error", garmentId: "g1" });
+  await q.discard(item.id);
+  expect(q.items()).toEqual([]);
+  expect(store.map.has(`vistet.blob.${item.id}`)).toBe(false);
+  expect(deps.discardGarment).toHaveBeenCalledWith("g1");
+});
+
+test("discard de una foto ilegible (sin prenda creada) no llama a discardGarment", async () => {
+  const deps = fakeDeps({
+    prepare: vi.fn(async () => {
+      throw new ImageDecodeError();
+    }),
+  });
+  const q = createUploadQueue(deps);
+  await q.add([photo("a")]);
+  await q.discard(q.items()[0].id);
+  expect(q.items()).toEqual([]);
+  expect(deps.discardGarment).not.toHaveBeenCalled();
+});
+
+test("retryAll reintenta todos los elementos en error", async () => {
+  let fail = true;
+  const deps = fakeDeps({
+    upload: vi.fn(async () => {
+      if (fail) throw new Error("500");
+    }),
+  });
+  const q = createUploadQueue(deps);
+  await q.add([photo("a"), photo("b")]);
+  expect(statuses(q.items())).toEqual(["error", "error"]);
+  fail = false;
+  await q.retryAll();
+  expect(statuses(q.items())).toEqual(["done", "done"]);
+});
+
+test("sin conexión (fetch TypeError) la cola se pausa sin marcar errores y sigue al volver la conexión", async () => {
+  let offline = true;
+  const deps = fakeDeps({
+    upload: vi.fn(async () => {
+      if (offline) throw new TypeError("Failed to fetch");
+    }),
+  });
+  const q = createUploadQueue(deps);
+  await q.add([photo("a"), photo("b")]);
+  expect(q.state()).toBe("paused_offline");
+  expect(statuses(q.items())).toEqual(["created", "queued"]);
+  offline = false;
+  window.dispatchEvent(new Event("online"));
+  await vi.waitFor(() => expect(statuses(q.items())).toEqual(["done", "done"]));
 });

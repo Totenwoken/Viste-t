@@ -71,3 +71,31 @@ test("eliminar pide confirmación y llama a onDeleted", async () => {
   expect(lastCall()[1].method).toBe("DELETE");
   expect(onDeleted).toHaveBeenCalledWith("j");
 });
+
+test("una prenda en error tiene 'Reintentar análisis', que vuelve a llamar a tag y guarda el resultado", async () => {
+  const failed = garment({ id: "f", status: "error", type: null, error: "Respuesta no válida" });
+  fetchMock.mockImplementationOnce(
+    async () => new Response(JSON.stringify({ garment: { ...failed, status: "ready", type: "camisa", error: null } }), { status: 200 }),
+  );
+  const onSaved = vi.fn();
+  render(<GarmentEditor garment={failed} all={[failed]} onSaved={onSaved} onDeleted={() => {}} onClose={() => {}} />);
+  await userEvent.click(screen.getByRole("button", { name: "Reintentar análisis" }));
+  const [url, init] = lastCall();
+  expect(url).toBe("/api/garments/tag");
+  expect(JSON.parse(String(init.body))).toEqual({ garmentId: "f" });
+  expect(onSaved).toHaveBeenCalledWith(expect.objectContaining({ status: "ready", type: "camisa" }));
+  expect(screen.queryByRole("button", { name: "Reintentar análisis" })).toBeNull();
+});
+
+test("'Reintentar análisis' con el tope alcanzado muestra el aviso", async () => {
+  const failed = garment({ id: "f", status: "error", type: null, error: "Respuesta no válida" });
+  fetchMock.mockImplementationOnce(async () => new Response("{}", { status: 402 }));
+  render(<GarmentEditor garment={failed} all={[failed]} onSaved={() => {}} onDeleted={() => {}} onClose={() => {}} />);
+  await userEvent.click(screen.getByRole("button", { name: "Reintentar análisis" }));
+  expect(await screen.findByText("Has llegado al tope de gasto del mes.")).toBeInTheDocument();
+});
+
+test("una prenda lista no muestra 'Reintentar análisis'", () => {
+  render(<GarmentEditor garment={JACKET} all={[JACKET]} onSaved={() => {}} onDeleted={() => {}} onClose={() => {}} />);
+  expect(screen.queryByRole("button", { name: "Reintentar análisis" })).toBeNull();
+});

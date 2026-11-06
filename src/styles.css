@@ -76,3 +76,6 @@ fieldset.field { border: 1.5px solid var(--line); border-radius: 10px; padding: 
 fieldset.field legend { padding: 0 4px; }
 .check { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }
 .suit { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--line); }
+.upload-errors .actions { display: flex; gap: 6px; flex-shrink: 0; }
+.upload-errors .btn, .retry-box .btn { padding: 8px 10px; font-size: 13px; }
+.retry-box { margin-bottom: 14px; }

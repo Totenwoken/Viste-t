@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react";
 import {
   AVAILABILITY, GARMENT_TYPES, SEASONS, type Garment, type GarmentPatch, type GarmentType, type Season,
 } from "../../../shared/garment";
-import { apiFetch } from "../../lib/api";
+import { apiFetch, BudgetExceededError } from "../../lib/api";
 import { AVAILABILITY_LABEL, FORMALITY_LABEL, SEASON_LABEL, TYPE_LABEL } from "./labels";
 
 const SUIT_TYPES: GarmentType[] = ["chaqueta_traje", "pantalon_traje"];
@@ -64,6 +64,33 @@ export function GarmentEditor({ garment, all, onSaved, onDeleted, onClose }: Pro
     });
   }
 
+  async function retryTagging() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await apiFetch("/api/garments/tag", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ garmentId: current.id }),
+      });
+      if (!res.ok) throw new Error();
+      const { garment: saved } = (await res.json()) as { garment: Garment };
+      setCurrent(saved);
+      if (saved.type) setType(saved.type);
+      if (saved.description) setDescription(saved.description);
+      setColors(saved.colors.join(", "));
+      if (saved.formality) setFormality(saved.formality);
+      setSeasons(saved.seasons);
+      setPattern(saved.pattern ?? "");
+      setMaterial(saved.material ?? "");
+      onSaved(saved);
+    } catch (e) {
+      setError(e instanceof BudgetExceededError ? "Has llegado al tope de gasto del mes." : "No se ha podido analizar. Inténtalo más tarde.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function remove() {
     if (!window.confirm("¿Eliminar esta prenda del armario?")) return;
     setBusy(true);
@@ -88,7 +115,13 @@ export function GarmentEditor({ garment, all, onSaved, onDeleted, onClose }: Pro
         <button type="button" className="btn" onClick={onClose}>← Volver</button>
       </div>
       {current.imageUrl && <img className="sheet-img" src={current.imageUrl} alt="" />}
-      {current.status === "error" && <p className="error-text">{current.error}</p>}
+      {current.status === "error" && (
+        <div className="retry-box">
+          <p className="error-text">{current.error}</p>
+          <p className="muted">Puedes reintentar el análisis o rellenar la ficha a mano y guardar.</p>
+          <button type="button" className="btn" disabled={busy} onClick={retryTagging}>Reintentar análisis</button>
+        </div>
+      )}
 
       <div className="seg" role="group" aria-label="Disponibilidad">
         {AVAILABILITY.map((a) => (

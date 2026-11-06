@@ -89,3 +89,21 @@ test("DELETE desvincula la pareja de traje y borra el archivo", async () => {
   expect(fake.tables.garments.find((g) => g.id === TROUSERS)?.suit_pair_id).toBeNull();
   expect(fake.removed).toEqual([`owner-1/${JACKET}.webp`]);
 });
+
+test("PATCH con type de una prenda en error la pasa a ready y limpia el error", async () => {
+  fake.tables.garments[0].status = "error";
+  fake.tables.garments[0].type = null;
+  fake.tables.garments[0].error = "No parece una prenda";
+  const r = await PATCH(
+    new Request(`http://x/api/garments?id=${JACKET}`, { method: "PATCH", headers: H, body: '{"type":"americana","description":"americana azul"}' }),
+  );
+  expect(r.status).toBe(200);
+  expect((await r.json()).garment).toMatchObject({ status: "ready", error: null, type: "americana" });
+});
+
+test("PATCH de una prenda en error sin type sigue en error", async () => {
+  fake.tables.garments[0].status = "error";
+  fake.tables.garments[0].type = null;
+  const r = await PATCH(new Request(`http://x/api/garments?id=${JACKET}`, { method: "PATCH", headers: H, body: '{"availability":"guardada"}' }));
+  expect((await r.json()).garment.status).toBe("error");
+});
