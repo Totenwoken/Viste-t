@@ -38,11 +38,25 @@ test("GET /api/auth/check → 200 {ok:true} con código válido", async () => {
 test("GET /api/auth/check sin código indica si el servidor tiene un código configurado", async () => {
   const r = await GET(new Request("http://x/api/auth/check"));
   expect(r.status).toBe(401);
-  expect(await r.json()).toEqual({ error: "unauthorized", configured: true });
+  expect(await r.json()).toMatchObject({ error: "unauthorized", configured: true });
 });
 
 test("GET /api/auth/check indica configured:false si falta ACCESS_CODE", async () => {
   delete process.env.ACCESS_CODE;
   const r = await GET(new Request("http://x/api/auth/check", { headers: { "x-access-code": "algo" } }));
-  expect(await r.json()).toEqual({ error: "unauthorized", configured: false });
+  expect(await r.json()).toMatchObject({ error: "unauthorized", configured: false });
+});
+
+test("GET /api/auth/check sin acceso informa qué variables existen (sin valores), el entorno y el commit", async () => {
+  process.env.SUPABASE_URL = "https://x.supabase.co";
+  delete process.env.ANTHROPIC_API_KEY;
+  process.env.VERCEL_ENV = "production";
+  process.env.VERCEL_GIT_COMMIT_SHA = "abc1234def";
+  const r = await GET(new Request("http://x/api/auth/check"));
+  const body = await r.json();
+  expect(body.env).toMatchObject({ ACCESS_CODE: true, SUPABASE_URL: true, ANTHROPIC_API_KEY: false });
+  expect(body.vercelEnv).toBe("production");
+  expect(body.commit).toBe("abc1234");
+  expect(JSON.stringify(body)).not.toContain("armario123");
+  expect(JSON.stringify(body)).not.toContain("x.supabase.co");
 });
