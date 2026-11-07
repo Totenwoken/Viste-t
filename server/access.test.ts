@@ -34,3 +34,15 @@ test("GET /api/auth/check → 200 {ok:true} con código válido", async () => {
   expect(r.status).toBe(200);
   expect(await r.json()).toEqual({ ok: true });
 });
+
+test("GET /api/auth/check sin código indica si el servidor tiene un código configurado", async () => {
+  const r = await GET(new Request("http://x/api/auth/check"));
+  expect(r.status).toBe(401);
+  expect(await r.json()).toEqual({ error: "unauthorized", configured: true });
+});
+
+test("GET /api/auth/check indica configured:false si falta ACCESS_CODE", async () => {
+  delete process.env.ACCESS_CODE;
+  const r = await GET(new Request("http://x/api/auth/check", { headers: { "x-access-code": "algo" } }));
+  expect(await r.json()).toEqual({ error: "unauthorized", configured: false });
+});
