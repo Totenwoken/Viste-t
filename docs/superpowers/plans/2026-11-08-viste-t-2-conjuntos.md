@@ -17,8 +17,8 @@
 - Restricción dura del spec: el conjunto **solo** usa prendas existentes del propietario con `status = 'ready'` y `availability = 'disponible'`.
 - Composición: exactamente 1 de abajo (`bottom`) y 1 calzado (`shoes`); **al menos una** prenda de torso entre `top` y `mid` (un jersey o un cuello alto puede ir solo, sin camiseta debajo, como en sus referencias); como máximo 1 `top`, 1 `mid` y 1 `outer`. **Nunca complementos** (`complemento` no se propone: solo ropa y calzado). Un jersey puede llevar camiseta debajo (top + mid) o ir solo.
 - **Sobrecamisa = capa exterior:** `layerOf("sobrecamisa")` pasa de `mid` a `outer`, para que "camiseta o jersey fino + sobrecamisa" sea válido. En el Armario, la sección `outer` se llama "Chaquetas y abrigos".
-- Trajes: en `traje`, chaqueta de traje + su pantalón vinculado (`suitPairId`). En cualquier modo, una `chaqueta_traje` con `jacketCombinable = false` solo puede ir con su propio pantalón.
-- Estilos (§5.3): `vaqueros` → abajo `pantalon_vaquero`, arriba camiseta o camisa (polo permitido), jersey opcional. `formal` → arriba `camisa` y/o `jersey` (sin camiseta, sudadera ni polo a la vista), cualquier pantalón salvo `bermuda`. `traje` → traje completo, arriba `camisa`. `chinos` → abajo `pantalon_chino`, arriba camisa o camiseta (polo permitido), jersey opcional. `auto` → libre.
+- Trajes: si hay `chaqueta_traje`, va con su pantalón vinculado (`suitPairId`) salvo que sea `jacketCombinable`. En cualquier modo, una `chaqueta_traje` con `jacketCombinable = false` solo puede ir con su propio pantalón.
+- Estilos (§5.3): `vaqueros` → abajo `pantalon_vaquero`, arriba camiseta o camisa (polo permitido), jersey opcional. `formal` → arriba `camisa` y/o `jersey` (sin camiseta, sudadera ni polo a la vista); abajo pantalón de vestir: `pantalon_traje`, `pantalon_otro` o `pantalon_chino` (**ni vaqueros ni bermuda**); fuera opcional, preferiblemente `americana`; nunca `cazadora` ni `sudadera`. `traje` ("Formal traje", lo más arreglado) → **o** traje completo (chaqueta de traje + su pantalón vinculado) **o** `americana` + pantalón de vestir (`pantalon_traje` o `pantalon_otro`); arriba `camisa` (o jersey de cuello alto bajo la americana); calzado de vestir (lo decide Claude según la ficha). `chinos` → abajo `pantalon_chino`, arriba camisa o camiseta (polo permitido), jersey opcional. `auto` → libre.
 - Prendas pedidas en "Quiero ponerme…" y prendas con candado: **siempre** incluidas. "Otro" mantiene las bloqueadas.
 - Motivos de "Otro" (texto exacto): `muy formal` · `muy informal` · `colores` · `me lo puse hace poco` · `no me apetece esa prenda`.
 - Historial que recibe Claude: prendas puestas en los **últimos 7 días**, y los **últimos 30** conjuntos aceptados y rechazados con sus motivos.
@@ -49,7 +49,7 @@
   - `interface OutfitRules { mode: OutfitMode; lockedIds: string[] }`
   - `interface Weather { tempC: number; minC: number; maxC: number; rainProb: number; label: string; icon: string }` (compartido por servidor y móvil)
   - `validateOutfit(ids: string[], available: Garment[], rules: OutfitRules): { ok: true } | { ok: false; problems: string[] }`. Los `problems` van en español y se reenvían a Claude en el reintento, p. ej. `"falta calzado"`, `"hay 2 prendas de abajo"`, `"la prenda X no está disponible"`, `"falta la prenda bloqueada X"`, `"en vaqueros el pantalón debe ser vaquero"`, `"la chaqueta de traje X solo puede ir con su pantalón"`.
-  - `missingForMode(available: Garment[], mode: OutfitMode): string | null`: devuelve el mensaje si no hay prendas suficientes para el modo (p. ej. `"No tienes vaqueros disponibles"`, `"Necesitas al menos una prenda de arriba o un jersey, una de abajo y calzado disponibles"`, `"No tienes ningún traje completo vinculado"`); `null` si se puede.
+  - `missingForMode(available: Garment[], mode: OutfitMode): string | null`: devuelve el mensaje si no hay prendas suficientes para el modo (p. ej. `"No tienes vaqueros disponibles"`, `"Necesitas al menos una prenda de arriba o un jersey, una de abajo y calzado disponibles"`, `"Necesitas un traje vinculado o una americana con pantalón de vestir"`); `null` si se puede.
 - Migración `0002_outfits.sql`:
   - `outfits` (`id uuid pk default gen_random_uuid()`, `user_id uuid not null`, `mode text not null`, `request text`, `garment_ids uuid[] not null`, `locked_ids uuid[] not null default '{}'`, `explanation text not null default ''`, `status text not null default 'proposed' check (status in ('proposed','worn','rejected'))`, `reject_reason text`, `worn_on date`, `weather jsonb`, `created_at timestamptz default now()`), con índice en `(user_id, created_at)`;
   - `outfit_swaps` (`id`, `user_id`, `outfit_id uuid references outfits(id) on delete cascade`, `garment_id uuid`, `created_at`), donde se registra cada "Cambiar solo esta";
@@ -82,6 +82,8 @@ test("vaqueros exige pantalón vaquero", () => {
   expect(validateOutfit(["c", "p", "z"], wardrobe, { mode: "vaqueros", lockedIds: [] }).ok).toBe(false);
   expect(validateOutfit(["c", "v", "z"], wardrobe, { mode: "vaqueros", lockedIds: [] }).ok).toBe(true);
 });
+test("traje acepta americana + pantalón de vestir + camisa y rechaza vaqueros", () => {});
+test("formal rechaza vaqueros y cazadora", () => {});
 test("traje exige chaqueta y su pantalón vinculado", () => {
   expect(validateOutfit(["c", "jt", "pt", "z"], wardrobe, { mode: "traje", lockedIds: [] }).ok).toBe(true);
   expect(validateOutfit(["c", "jt", "p", "z"], wardrobe, { mode: "traje", lockedIds: [] }).ok).toBe(false);
@@ -380,4 +382,5 @@ Estilo de Alejandro: masculino, limpio y "smart casual" moderno, de inspiración
 - Calzado: zapatillas blancas de piel minimalistas (su favorito para vaqueros y chinos), botines chelsea (marrón de piel o ante, negro), zapato oxford/derby o mocasín marrón oscuro o burdeos para looks formales, zapatillas de ante en tonos tierra.
 - Detalles: prendas lisas, sin logos ni estampados llamativos (como mucho rayas finas o diplomática en pantalón de vestir). Los conjuntos son solo ropa y calzado: no propongas complementos.
 - Evitar: chándal o ropa deportiva fuera de contexto, estampados grandes, mezclar muchos colores vivos, calzado deportivo técnico con pantalón de vestir.
+- Lo arreglado ("Formal" y "Formal traje"): camisa lisa por dentro (azul claro, blanca, rosa palo, burdeos, marrón, verde, negra; también rayas finas o vichy pequeño) o jersey de cuello alto; pantalón de vestir o de pinzas (gris, marino, marrón, negro, beige, tostado). Americana suelta que no hace juego con el pantalón (tweed marrón, camel, beige, verde, negra, burdeos) o traje completo (incluidos tweed, cruzado o pana). Calzado de vestir: oxford, derby, hebilla (monk), mocasín o chelsea de piel, en marrón, burdeos o negro. Para "Formal" basta camisa (o cuello alto) + pantalón de vestir, con americana opcional; para "Formal traje", traje o americana siempre. Nunca vaqueros, zapatillas ni cazadoras en estos dos estilos.
 ```
