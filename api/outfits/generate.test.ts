@@ -246,3 +246,42 @@ test("si las dos llamadas lanzan error → 422 legible, no un 500", async () => 
   const r = await POST(req({ mode: "auto" }));
   expect(r.status).toBe(422);
 });
+
+test("'Añadir capa' mantiene el conjunto y añade una sola prenda de capa", async () => {
+  prevOutfit();
+  state.replies.push(reply(["c", "sc", "p", "z"]));
+  const r = await POST(req({ mode: "auto", addLayerTo: "o1", lockedIds: ["p"] }));
+  expect(r.status).toBe(200);
+  const body = await r.json();
+  expect(body.outfit).toMatchObject({ garmentIds: ["c", "sc", "p", "z"], addedId: "sc", lockedIds: ["p"] });
+  expect(state.prompts[0]).toContain("Añade UNA sola prenda");
+});
+
+test("'Añadir capa' rechaza respuestas que quitan prendas o añaden más de una", async () => {
+  prevOutfit();
+  fake.tables.garments.push(garmentRow({ id: "jer", type: "jersey", description: "jersey crema" }));
+  state.replies.push(reply(["cam", "sc", "p", "z"]), reply(["c", "jer", "sc", "p", "z"]));
+  const r = await POST(req({ mode: "auto", addLayerTo: "o1" }));
+  expect(r.status).toBe(422);
+  expect(state.prompts[1]).toMatch(/falta la prenda bloqueada|añade exactamente una prenda/);
+});
+
+test("'Añadir capa' sin hueco (ya lleva jersey y prenda de fuera) → 422 no_room sin llamar a Claude", async () => {
+  fake.tables.garments.push(garmentRow({ id: "jer", type: "jersey", description: "jersey crema" }));
+  fake.tables.outfits.push({
+    id: "o9", user_id: "owner-1", mode: "auto", request: null, garment_ids: ["jer", "sc", "p", "z"], locked_ids: [],
+    explanation: "", status: "proposed", reject_reason: null, worn_on: null, created_at: "2026-11-08T08:00:00Z",
+  });
+  const r = await POST(req({ mode: "auto", addLayerTo: "o9" }));
+  expect(r.status).toBe(422);
+  expect((await r.json()).error).toBe("no_room");
+  expect(state.prompts).toHaveLength(0);
+});
+
+test("'Añadir capa' sin prendas de capa disponibles → 422 not_enough", async () => {
+  fake.tables.garments = fake.tables.garments.filter((g) => g.id !== "sc");
+  prevOutfit();
+  const r = await POST(req({ mode: "auto", addLayerTo: "o1" }));
+  expect(r.status).toBe(422);
+  expect(await r.json()).toEqual({ error: "not_enough", message: "No tienes jerséis ni chaquetas disponibles para añadir" });
+});

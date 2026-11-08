@@ -88,3 +88,20 @@ test("interpretOutfit: válido → out", () => {
   const out = { garment_ids: ["c", "p", "z"], explanation: "Va bien.", requested_ids: [], missing_request: null };
   expect(interpretOutfit({ stop_reason: "end_turn", parsed_output: out })).toEqual({ ok: true, out });
 });
+
+test("el tiempo incluye primera hora y anochecer cuando se conocen", () => {
+  const text = JSON.stringify(buildOutfitRequest(wardrobe, { ...ctx, weather: { ...ctx.weather!, morningC: 11.6, eveningC: 13.2 } }, "m").messages);
+  expect(text).toContain("a las 8:00 12 °C");
+  expect(text).toContain("a las 21:00 13 °C");
+});
+
+test("las reglas piden una capa fácil de quitar si refresca por la mañana o la noche", () => {
+  expect(systemText(buildOutfitRequest(wardrobe, ctx, "m"))).toContain("capa fácil de quitar");
+});
+
+test("en modo 'añadir capa' el mensaje pide una sola prenda más de las capas libres", () => {
+  const text = JSON.stringify(buildOutfitRequest(wardrobe, { ...ctx, lockedIds: ["c", "p", "z"], addLayer: ["mid", "outer"] }, "m").messages);
+  expect(text).toContain("Añade UNA sola prenda");
+  expect(text).toContain("jersey");
+  expect(text).toContain("prenda de fuera");
+});

@@ -23,6 +23,8 @@ export interface OutfitContext {
   retryProblems?: string[];
   /** Conjunto al que sustituye "Otro": hay que proponer uno distinto. */
   previousIds?: string[];
+  /** "Añadir capa": capas libres en las que se puede añadir una prenda. */
+  addLayer?: ("mid" | "outer")[];
 }
 
 export const OutfitOutputSchema = z.object({
@@ -62,7 +64,7 @@ Criterio:
 - Incluye SIEMPRE las prendas bloqueadas. No uses las excluidas.
 - No repitas prendas puestas en los últimos 7 días salvo que estén bloqueadas o las haya pedido.
 - Evita combinaciones que ha rechazado y ten en cuenta sus motivos (p. ej. "muy formal", "colores").
-- Adapta capas y tejidos a la temperatura y a la lluvia si se indican.
+- Adapta capas y tejidos a la temperatura y a la lluvia si se indican. Vive en Málaga: si el día es templado pero a primera hora o al anochecer refresca (unos 5 °C menos, o por debajo de 17 °C), incluye de entrada una capa fácil de quitar (sobrecamisa, cárdigan, chaqueta ligera) y menciónalo en la explicación.
 - Si pide algo en "Quiero ponerme", usa las prendas de su armario que mejor encajen con lo pedido y devuélvelas en requested_ids. Si alguna parte no existe en su armario, ponla en missing_request y monta igualmente el mejor conjunto posible.
 - explanation: una o dos frases, en español y en segunda persona, sobre por qué combina.`;
 
@@ -83,7 +85,13 @@ function describeRequest(ctx: OutfitContext, byId: Map<string, Garment>): string
   const lines = [`Fecha: ${ctx.today}`];
   if (ctx.weather) {
     const w = ctx.weather;
-    lines.push(`Tiempo: ${w.label}, ahora ${Math.round(w.tempC)} °C (mín ${Math.round(w.minC)} °C, máx ${Math.round(w.maxC)} °C), probabilidad de lluvia ${w.rainProb}%`);
+    const extra = [
+      w.morningC != null ? `a las 8:00 ${Math.round(w.morningC)} °C` : null,
+      w.eveningC != null ? `a las 21:00 ${Math.round(w.eveningC)} °C` : null,
+    ].filter(Boolean);
+    lines.push(
+      `Tiempo: ${w.label}, ahora ${Math.round(w.tempC)} °C (mín ${Math.round(w.minC)} °C, máx ${Math.round(w.maxC)} °C${extra.length ? `; ${extra.join(", ")}` : ""}), probabilidad de lluvia ${w.rainProb}%`,
+    );
   }
   lines.push(`Estilo pedido: ${MODE_LABEL[ctx.mode]} [${ctx.mode}]`);
   if (ctx.request) lines.push(`Quiero ponerme: ${ctx.request}`);
@@ -101,7 +109,14 @@ function describeRequest(ctx: OutfitContext, byId: Map<string, Garment>): string
   if (ctx.retryProblems?.length) {
     lines.push(`Tu propuesta anterior no era válida por: ${ctx.retryProblems.join("; ")}. Corrígela.`);
   }
-  lines.push("Propón un conjunto.");
+  if (ctx.addLayer?.length) {
+    const kinds = ctx.addLayer.map((l) => (l === "mid" ? "un jersey, cárdigan o sudadera" : "una prenda de fuera (sobrecamisa, cazadora, americana o abrigo)"));
+    lines.push(
+      `Añade UNA sola prenda al conjunto bloqueado (que se mantiene entero): ${kinds.join(" o ")}. Elige la que mejor combine en color y estilo y encaje con el tiempo. Devuelve en garment_ids el conjunto completo con la prenda nueva, y explica por qué esa capa.`,
+    );
+  } else {
+    lines.push("Propón un conjunto.");
+  }
   return lines.join("\n");
 }
 

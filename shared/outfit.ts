@@ -19,6 +19,8 @@ export interface Outfit {
   createdAt: string;
   /** Avisos para la pantalla (no se guardan en la BD). */
   notes: string[];
+  /** Prenda añadida con "Añadir capa" (no se guarda en la BD). */
+  addedId?: string | null;
 }
 
 export interface OutfitRules {
@@ -33,6 +35,9 @@ export interface Weather {
   rainProb: number;
   label: string;
   icon: string;
+  /** Temperatura a las 8:00 y a las 21:00 (null si no se conoce). */
+  morningC?: number | null;
+  eveningC?: number | null;
 }
 
 const DRESS_TROUSERS: GarmentType[] = ["pantalon_traje", "pantalon_otro"];

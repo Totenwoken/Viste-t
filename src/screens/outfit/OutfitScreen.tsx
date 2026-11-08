@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { Garment } from "../../../shared/garment";
+import { layerOf, type Garment } from "../../../shared/garment";
 import { REJECT_REASONS, type Outfit, type RejectReason } from "../../../shared/outfit";
 import { BudgetExceededError } from "../../lib/api";
 import { generateOutfit, OutfitError, rejectOutfit, wearOther, wearOutfit, type GenerateBody } from "../../lib/outfitsApi";
@@ -73,6 +73,11 @@ export function OutfitScreen({ request, onBack }: Props) {
   async function another() {
     if (!outfit) return;
     await generate({ lockedIds: locked, previousOutfitId: outfit.id }, outfit);
+  }
+
+  async function addLayer() {
+    if (!outfit) return;
+    await generate({ addLayerTo: outfit.id, lockedIds: locked }, null);
   }
 
   async function swapOne(id: string) {
@@ -156,12 +161,14 @@ export function OutfitScreen({ request, onBack }: Props) {
   }
 
   const selectedGarment = garments.find((g) => g.id === selected);
+  const layers = new Set(garments.map((g) => g.type && layerOf(g.type)));
+  const canAddLayer = !(layers.has("mid") && layers.has("outer"));
   return (
     <section className="outfit">
       <button type="button" className="link back" onClick={onBack}>← Inicio</button>
       {request.request && <p className="muted">{`Con: ${request.request}`}</p>}
 
-      <OutfitCollage garments={garments} lockedIds={locked} onToggleLock={toggleLock} onSelect={(id) => setSelected(id === selected ? null : id)} />
+      <OutfitCollage garments={garments} lockedIds={locked} addedId={outfit?.addedId} onToggleLock={toggleLock} onSelect={(id) => setSelected(id === selected ? null : id)} />
 
       {selectedGarment && (
         <div className="piece-menu" role="group" aria-label={`Opciones de ${selectedGarment.description}`}>
@@ -188,6 +195,9 @@ export function OutfitScreen({ request, onBack }: Props) {
         <button type="button" className="btn primary" disabled={busy} onClick={wear}>Me lo pongo ✓</button>
         <button type="button" className="btn" disabled={busy} onClick={another}>Otro ↻</button>
       </div>
+      {canAddLayer && (
+        <button type="button" className="btn add-layer" disabled={busy} onClick={addLayer}>Añadir capa</button>
+      )}
       {busy && <p className="muted">Montando otro…</p>}
 
       {askReasonFor && (

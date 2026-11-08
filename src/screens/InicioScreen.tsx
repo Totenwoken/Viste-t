@@ -49,6 +49,8 @@ export function InicioScreen({ onRequest }: { onRequest(r: OutfitRequest): void 
           <>
             {" · "}
             <span>{`${Math.round(weather.tempC)}°C ${weather.icon} ${weather.label}`}</span>
+            {" · "}
+            <span>{`${Math.round(weather.minC)}°–${Math.round(weather.maxC)}°`}</span>
           </>
         )}
         {weatherLoaded && !weather && !pickingCity && (

@@ -23,17 +23,23 @@ export function wmoLabel(code: number): { label: string; icon: string } {
 export async function fetchWeather(lat: number, lon: number): Promise<Weather> {
   const url =
     `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
-    "&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max" +
+    "&current=temperature_2m,weather_code&hourly=temperature_2m&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max" +
     "&timezone=auto&forecast_days=1";
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Open-Meteo ${res.status}`);
   const d = await res.json();
+  const at = (hour: string): number | null => {
+    const i = (d.hourly?.time as string[] | undefined)?.findIndex((t) => t.endsWith(`T${hour}`)) ?? -1;
+    return i >= 0 ? (d.hourly.temperature_2m[i] as number) : null;
+  };
   return {
     tempC: d.current.temperature_2m,
     minC: d.daily.temperature_2m_min[0],
     maxC: d.daily.temperature_2m_max[0],
     rainProb: d.daily.precipitation_probability_max[0] ?? 0,
     ...wmoLabel(d.current.weather_code),
+    morningC: at("08:00"),
+    eveningC: at("21:00"),
   };
 }
 

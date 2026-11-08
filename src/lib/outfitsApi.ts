@@ -15,6 +15,7 @@ export interface GenerateBody {
   lockedIds?: string[];
   previousOutfitId?: string;
   replaceId?: string;
+  addLayerTo?: string;
   weather?: Weather | null;
 }
 

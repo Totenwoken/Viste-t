@@ -191,3 +191,40 @@ test("si iOS no deja compartir tras preparar la imagen, ofrece un botón para co
   expect(img.shareOrDownload).toHaveBeenCalledTimes(2);
   expect(img.shareOrDownload).toHaveBeenLastCalledWith(blob);
 });
+
+const overshirt = g("sc", "sobrecamisa", "sobrecamisa verde");
+
+test("'Añadir capa' mantiene el conjunto, pide una capa y marca la prenda nueva", async () => {
+  api.generateOutfit.mockResolvedValueOnce({
+    outfit: outfit("o2", ["c", "sc", "p", "z"], { addedId: "sc" }),
+    garments: [shirt, overshirt, chino, shoes],
+  });
+  render(<OutfitScreen request={request} onBack={() => {}} />);
+  await screen.findByText("Explicación o1");
+  await userEvent.click(screen.getByRole("button", { name: "Bloquear chino verde" }));
+  await userEvent.click(screen.getByRole("button", { name: "Añadir capa" }));
+  expect(await screen.findByText("Explicación o2")).toBeInTheDocument();
+  expect(api.generateOutfit).toHaveBeenLastCalledWith({ mode: "auto", weather: null, addLayerTo: "o1", lockedIds: ["p"] });
+  expect(screen.getByText("Nueva")).toBeInTheDocument();
+  expect(api.rejectOutfit).not.toHaveBeenCalled();
+  expect(screen.queryByText("¿Por qué no te gustó el anterior?")).toBeNull();
+});
+
+test("'Añadir capa' no aparece si el conjunto ya lleva jersey y prenda de fuera", async () => {
+  api.generateOutfit.mockReset().mockResolvedValueOnce({
+    outfit: outfit("o1", ["j", "sc", "p", "z"]),
+    garments: [g("j", "jersey", "jersey crema"), overshirt, chino, shoes],
+  });
+  render(<OutfitScreen request={request} onBack={() => {}} />);
+  await screen.findByText("Explicación o1");
+  expect(screen.queryByRole("button", { name: "Añadir capa" })).toBeNull();
+});
+
+test("si 'Añadir capa' falla, se avisa y se mantiene el conjunto", async () => {
+  api.generateOutfit.mockRejectedValueOnce(new OutfitError("not_enough", "No tienes jerséis ni chaquetas disponibles para añadir"));
+  render(<OutfitScreen request={request} onBack={() => {}} />);
+  await screen.findByText("Explicación o1");
+  await userEvent.click(screen.getByRole("button", { name: "Añadir capa" }));
+  expect(await screen.findByText("No tienes jerséis ni chaquetas disponibles para añadir")).toBeInTheDocument();
+  expect(screen.getByText("Explicación o1")).toBeInTheDocument();
+});

@@ -34,7 +34,7 @@ test("wmoLabel traduce los códigos principales", () => {
 test("fetchWeather mapea la respuesta de Open-Meteo a Weather", async () => {
   const fetchMock = vi.fn(async (_u: string) => new Response(JSON.stringify(openMeteo)));
   vi.stubGlobal("fetch", fetchMock);
-  expect(await fetchWeather(40.4, -3.7)).toEqual({ tempC: 14.4, minC: 8.6, maxC: 17.2, rainProb: 20, label: "Nubes y claros", icon: "⛅" });
+  expect(await fetchWeather(40.4, -3.7)).toEqual({ tempC: 14.4, minC: 8.6, maxC: 17.2, rainProb: 20, label: "Nubes y claros", icon: "⛅", morningC: null, eveningC: null });
   expect(fetchMock.mock.calls[0][0]).toContain("latitude=40.4");
 });
 
@@ -79,4 +79,19 @@ test("usa la caché de 30 minutos", async () => {
   await getTodayWeather();
   await getTodayWeather();
   expect(fetchMock).toHaveBeenCalledTimes(1);
+});
+
+test("fetchWeather incluye la temperatura de primera hora (8:00) y del anochecer (21:00)", async () => {
+  const hours = Array.from({ length: 24 }, (_, h) => `2026-11-08T${String(h).padStart(2, "0")}:00`);
+  const temps = hours.map((_, h) => 10 + h * 0.5);
+  const fetchMock = vi.fn(async (_u: string) => new Response(JSON.stringify({ ...openMeteo, hourly: { time: hours, temperature_2m: temps } })));
+  vi.stubGlobal("fetch", fetchMock);
+  const w = await fetchWeather(36.72, -4.42);
+  expect(w).toMatchObject({ morningC: 14, eveningC: 20.5 });
+  expect(fetchMock.mock.calls[0][0]).toContain("hourly=temperature_2m");
+});
+
+test("sin datos por horas, morningC y eveningC son null", async () => {
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(openMeteo))));
+  expect(await fetchWeather(36.72, -4.42)).toMatchObject({ morningC: null, eveningC: null });
 });

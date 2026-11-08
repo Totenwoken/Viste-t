@@ -121,3 +121,7 @@ fieldset.field legend { padding: 0 4px; }
 .tile.selected { border-color: var(--ink); box-shadow: 0 0 0 2px var(--ink) inset; }
 .sticky-actions { position: sticky; bottom: calc(70px + env(safe-area-inset-bottom)); background: var(--bg); padding: 10px 0; }
 .outfit-links { justify-content: space-between; margin-top: 14px; }
+
+.add-layer { width: 100%; margin-top: 8px; }
+.piece.added .piece-img { outline: 2px dashed var(--ink); outline-offset: 2px; border-radius: 10px; }
+.added-badge { position: absolute; top: 4px; left: 4px; z-index: 1; background: var(--ink); color: #fff; font-size: 11px; font-weight: 700; border-radius: 999px; padding: 3px 8px; }

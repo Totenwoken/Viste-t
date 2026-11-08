@@ -66,3 +66,8 @@ test("muestra la fecha de hoy en español", () => {
   const today = new Intl.DateTimeFormat("es-ES", { weekday: "long", day: "numeric", month: "long" }).format(new Date());
   expect(screen.getByText(new RegExp(today, "i"))).toBeInTheDocument();
 });
+
+test("muestra la mínima y la máxima del día", async () => {
+  render(<InicioScreen onRequest={() => {}} />);
+  expect(await screen.findByText("9°–17°")).toBeInTheDocument();
+});
