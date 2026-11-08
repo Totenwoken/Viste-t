@@ -15,7 +15,8 @@
 - Todo lo del plan 1 sigue vigente: interfaz en español, código de acceso en cada función de `api/`, consultas filtradas por `ownerId()`, tope mensual con `checkBudget()`/`recordUsage()`, imports relativos del servidor con extensión `.js`.
 - Modelo de conjuntos configurable: `MODEL_OUTFIT`, por defecto `claude-haiku-5-5` (añadir la tarea `"outfit"` a `server/claude.ts`).
 - Restricción dura del spec: el conjunto **solo** usa prendas existentes del propietario con `status = 'ready'` y `availability = 'disponible'`.
-- Composición: exactamente 1 de abajo (`bottom`) y 1 calzado (`shoes`); **al menos una** prenda de torso entre `top` y `mid` (un jersey o un cuello alto puede ir solo, sin camiseta debajo, como en sus referencias); como máximo 1 `top`, 1 `mid`, 1 `outer` y 2 `accessory`.
+- Composición: exactamente 1 de abajo (`bottom`) y 1 calzado (`shoes`); **al menos una** prenda de torso entre `top` y `mid` (un jersey o un cuello alto puede ir solo, sin camiseta debajo, como en sus referencias); como máximo 1 `top`, 1 `mid` y 1 `outer`. **Nunca complementos** (`complemento` no se propone: solo ropa y calzado). Un jersey puede llevar camiseta debajo (top + mid) o ir solo.
+- **Sobrecamisa = capa exterior:** `layerOf("sobrecamisa")` pasa de `mid` a `outer`, para que "camiseta o jersey fino + sobrecamisa" sea válido. En el Armario, la sección `outer` se llama "Chaquetas y abrigos".
 - Trajes: en `traje`, chaqueta de traje + su pantalón vinculado (`suitPairId`). En cualquier modo, una `chaqueta_traje` con `jacketCombinable = false` solo puede ir con su propio pantalón.
 - Estilos (§5.3): `vaqueros` → abajo `pantalon_vaquero`, arriba camiseta o camisa (polo permitido), jersey opcional. `formal` → arriba `camisa` y/o `jersey` (sin camiseta, sudadera ni polo a la vista), cualquier pantalón salvo `bermuda`. `traje` → traje completo, arriba `camisa`. `chinos` → abajo `pantalon_chino`, arriba camisa o camiseta (polo permitido), jersey opcional. `auto` → libre.
 - Prendas pedidas en "Quiero ponerme…" y prendas con candado: **siempre** incluidas. "Otro" mantiene las bloqueadas.
@@ -37,7 +38,7 @@
 
 **Files:**
 - Create: `supabase/migrations/0002_outfits.sql`, `shared/outfit.ts`
-- Modify: `server/testing/fakeDb.ts` (añadir `in(col, values)`, `gte(col, v)`, `limit(n)`)
+- Modify: `server/testing/fakeDb.ts` (añadir `in(col, values)`, `gte(col, v)`, `limit(n)`), `shared/garment.ts` (sobrecamisa → `outer`), `shared/garment.test.ts`, `src/screens/armario/labels.ts` (`LAYER_LABEL.outer = "Chaquetas y abrigos"`), `src/screens/armario/GarmentGrid.test.tsx` si depende del texto
 - Test: `shared/outfit.test.ts`
 
 **Interfaces:**
@@ -48,7 +49,7 @@
   - `interface OutfitRules { mode: OutfitMode; lockedIds: string[] }`
   - `interface Weather { tempC: number; minC: number; maxC: number; rainProb: number; label: string; icon: string }` (compartido por servidor y móvil)
   - `validateOutfit(ids: string[], available: Garment[], rules: OutfitRules): { ok: true } | { ok: false; problems: string[] }`. Los `problems` van en español y se reenvían a Claude en el reintento, p. ej. `"falta calzado"`, `"hay 2 prendas de abajo"`, `"la prenda X no está disponible"`, `"falta la prenda bloqueada X"`, `"en vaqueros el pantalón debe ser vaquero"`, `"la chaqueta de traje X solo puede ir con su pantalón"`.
-  - `missingForMode(available: Garment[], mode: OutfitMode): string | null`: devuelve el mensaje si no hay prendas suficientes para el modo (p. ej. `"No tienes vaqueros disponibles"`, `"Necesitas al menos una prenda de arriba, una de abajo y calzado disponibles"`, `"No tienes ningún traje completo vinculado"`); `null` si se puede.
+  - `missingForMode(available: Garment[], mode: OutfitMode): string | null`: devuelve el mensaje si no hay prendas suficientes para el modo (p. ej. `"No tienes vaqueros disponibles"`, `"Necesitas al menos una prenda de arriba o un jersey, una de abajo y calzado disponibles"`, `"No tienes ningún traje completo vinculado"`); `null` si se puede.
 - Migración `0002_outfits.sql`:
   - `outfits` (`id uuid pk default gen_random_uuid()`, `user_id uuid not null`, `mode text not null`, `request text`, `garment_ids uuid[] not null`, `locked_ids uuid[] not null default '{}'`, `explanation text not null default ''`, `status text not null default 'proposed' check (status in ('proposed','worn','rejected'))`, `reject_reason text`, `worn_on date`, `weather jsonb`, `created_at timestamptz default now()`), con índice en `(user_id, created_at)`;
   - `outfit_swaps` (`id`, `user_id`, `outfit_id uuid references outfits(id) on delete cascade`, `garment_id uuid`, `created_at`), donde se registra cada "Cambiar solo esta";
@@ -57,6 +58,8 @@
 - [ ] **Step 1: Write the failing tests** (`shared/outfit.test.ts`, con prendas de `garment()` de testData adaptadas):
 
 ```ts
+test("camiseta + sobrecamisa (outer) + chino + calzado es válido", () => {});
+test("un complemento en el conjunto no es válido", () => {});
 test("conjunto mínimo válido: camisa + chino + calzado", () => {
   expect(validateOutfit(["c", "p", "z"], wardrobe, { mode: "auto", lockedIds: [] })).toEqual({ ok: true });
 });
@@ -95,7 +98,7 @@ test("missingForMode: sin vaqueros disponibles", () => {
 });
 test("missingForMode: sin calzado", () => {
   expect(missingForMode(wardrobe.filter((g) => g.type !== "calzado"), "auto")).toBe(
-    "Necesitas al menos una prenda de arriba, una de abajo y calzado disponibles",
+    "Necesitas al menos una prenda de arriba o un jersey, una de abajo y calzado disponibles",
   );
 });
 ```
@@ -154,7 +157,7 @@ test("modelFor('outfit') usa MODEL_OUTFIT o claude-haiku-5-5", () => {});
 **Interfaces:**
 - Consumes: Tasks 1–2; `requireAccess`, `json`, `db`, `ownerId`, `checkBudget`, `recordUsage`, `anthropic`, `modelFor`, `rowToGarment` (plan 1).
 - Produces:
-  - `server/outfitsRepo.ts`: `rowToOutfit(row): Outfit`; `loadAvailable(): Promise<Garment[]>` (`ready` + `disponible`, sin imageUrl); `loadHistory(today: string): Promise<{ wornRecently: string[]; history: HistoryItem[] }>`.
+  - `server/outfitsRepo.ts`: `rowToOutfit(row): Outfit`; `loadAvailable(): Promise<Garment[]>` (`ready` + `disponible`, **sin `complemento`**, sin imageUrl); `loadHistory(today: string): Promise<{ wornRecently: string[]; history: HistoryItem[] }>`.
   - `POST /api/outfits/generate` con body `{ mode: OutfitMode; request?: string; lockedIds?: string[]; previousOutfitId?: string; replaceId?: string; weather?: Weather | null }` → `200 { outfit: Outfit; garments: Garment[] /* con imageUrl */ }`.
 - Comportamiento, en orden:
   1. acceso, y zod sobre el body (`400` si no es válido);
@@ -301,7 +304,7 @@ test("sin tiempo ofrece 'Añadir ciudad'", async () => {});
   - **"Me lo pongo"** → `wearOutfit`, muestra "¡Listo! Que tengas un buen día" y el botón "Volver".
   - **"Me puse otra cosa"** (enlace) → `WearOtherPicker`: rejilla del armario agrupada por capa, selección múltiple y "Guardar" → `wearOther`.
   - Errores: `BudgetExceededError` → "Has llegado al tope de gasto del mes" sin borrar el conjunto actual. `OutfitError` → su mensaje y el botón "Volver".
-- `<OutfitCollage garments={Garment[]} lockedIds onToggleLock(id) onSelect(id) />`: disposición fija tipo *flat lay* en rejilla CSS de 2 columnas (izquierda: abrigo arriba y, debajo, prenda de arriba o jersey; derecha: pantalón; abajo a lo ancho: calzado y complementos), sobre fondo `--soft`.
+- `<OutfitCollage garments={Garment[]} lockedIds onToggleLock(id) onSelect(id) />`: disposición fija tipo *flat lay* en rejilla CSS de 2 columnas (izquierda: abrigo arriba y, debajo, prenda de arriba o jersey; derecha: pantalón; abajo a lo ancho: calzado), sobre fondo `--soft`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -372,9 +375,9 @@ Estilo de Alejandro: masculino, limpio y "smart casual" moderno, de inspiración
 - Paleta: neutros y tierra como base (crema, blanco roto, beige/arena, camel, tabaco, marrón chocolate), azul marino, grises (claro y antracita), negro y blanco. Acentos sobrios y de uno en uno: burdeos, verde oliva o botella, verde salvia, azul petróleo; el rojo, muy ocasional.
 - Combinaciones: 2–3 colores por conjunto, como mucho un color de acento. Contraste claro/oscuro entre la parte de arriba y la de abajo (p. ej. jersey crema con pantalón marino, jersey negro con vaquero claro). Conjuntos tono sobre tono en neutros también le gustan (beige, crema, tabaco).
 - Siluetas: ajustadas pero no apretadas; pantalón slim o recto, bajo limpio; punto fino que marca hombros.
-- Prendas que más usa en sus referencias: jersey de punto fino (cuello caja, cuello alto, medio cuello con cremallera), cárdigan con cremallera, polo (de punto, manga corta o larga), henley, camisa lisa u oxford, sobrecamisa; chaquetas cortas (Harrington, trucker de ante o pana, bomber, cazadora de piel). Abajo: vaqueros (azul medio o claro, gris, negro, blanco o crudo), chinos (beige, tabaco, oliva, crudo) y pantalón de pinzas de vestir.
-- Capas típicas: jersey o camiseta lisa + chaqueta corta; camisa bajo jersey de cuello caja con el cuello asomando; cuello alto solo o bajo chaqueta.
+- Prendas que más usa en sus referencias: jersey de punto fino (cuello caja, cuello alto, medio cuello con cremallera), cárdigan con cremallera, polo (de punto, manga corta o larga), henley, camisa lisa u oxford. Le encantan las sobrecamisas (tiene muchas) como capa exterior sobre camiseta lisa o jersey fino; chaquetas cortas (Harrington, trucker de ante o pana, bomber, cazadora de piel). Abajo: vaqueros (azul medio o claro, gris, negro, blanco o crudo), chinos (beige, tabaco, oliva, crudo y también de color, sobre todo verdes: combínalos con neutros —blanco, crema, marino, gris, beige— y calzado blanco, marrón o de ante) y pantalón de pinzas de vestir.
+- Capas típicas: camiseta lisa o jersey fino + sobrecamisa (su combinación favorita); jersey o camiseta lisa + chaqueta corta; jersey solo o con una camiseta debajo que no se vea; camisa bajo jersey de cuello caja con el cuello asomando; cuello alto solo o bajo chaqueta.
 - Calzado: zapatillas blancas de piel minimalistas (su favorito para vaqueros y chinos), botines chelsea (marrón de piel o ante, negro), zapato oxford/derby o mocasín marrón oscuro o burdeos para looks formales, zapatillas de ante en tonos tierra.
-- Detalles: prendas lisas, sin logos ni estampados llamativos (como mucho rayas finas o diplomática en pantalón de vestir). Cinturón de piel a juego con el calzado cuando lleva camisa o pantalón de vestir. Complementos discretos: reloj, gafas de sol, pulsera de cuero.
+- Detalles: prendas lisas, sin logos ni estampados llamativos (como mucho rayas finas o diplomática en pantalón de vestir). Los conjuntos son solo ropa y calzado: no propongas complementos.
 - Evitar: chándal o ropa deportiva fuera de contexto, estampados grandes, mezclar muchos colores vivos, calzado deportivo técnico con pantalón de vestir.
 ```
