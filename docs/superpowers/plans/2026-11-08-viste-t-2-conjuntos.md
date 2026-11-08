@@ -15,9 +15,9 @@
 - Todo lo del plan 1 sigue vigente: interfaz en español, código de acceso en cada función de `api/`, consultas filtradas por `ownerId()`, tope mensual con `checkBudget()`/`recordUsage()`, imports relativos del servidor con extensión `.js`.
 - Modelo de conjuntos configurable: `MODEL_OUTFIT`, por defecto `claude-haiku-5-5` (añadir la tarea `"outfit"` a `server/claude.ts`).
 - Restricción dura del spec: el conjunto **solo** usa prendas existentes del propietario con `status = 'ready'` y `availability = 'disponible'`.
-- Composición: exactamente 1 parte de arriba (`top`), 1 de abajo (`bottom`) y 1 calzado (`shoes`); como máximo 1 `mid`, 1 `outer` y 2 `accessory`.
+- Composición: exactamente 1 de abajo (`bottom`) y 1 calzado (`shoes`); **al menos una** prenda de torso entre `top` y `mid` (un jersey o un cuello alto puede ir solo, sin camiseta debajo, como en sus referencias); como máximo 1 `top`, 1 `mid`, 1 `outer` y 2 `accessory`.
 - Trajes: en `traje`, chaqueta de traje + su pantalón vinculado (`suitPairId`). En cualquier modo, una `chaqueta_traje` con `jacketCombinable = false` solo puede ir con su propio pantalón.
-- Estilos (§5.3): `vaqueros` → abajo `pantalon_vaquero`, arriba camiseta o camisa (polo permitido), jersey opcional. `formal` → arriba `camisa`, cualquier pantalón salvo `bermuda`, jersey opcional. `traje` → traje completo, arriba `camisa`. `chinos` → abajo `pantalon_chino`, arriba camisa o camiseta (polo permitido), jersey opcional. `auto` → libre.
+- Estilos (§5.3): `vaqueros` → abajo `pantalon_vaquero`, arriba camiseta o camisa (polo permitido), jersey opcional. `formal` → arriba `camisa` y/o `jersey` (sin camiseta, sudadera ni polo a la vista), cualquier pantalón salvo `bermuda`. `traje` → traje completo, arriba `camisa`. `chinos` → abajo `pantalon_chino`, arriba camisa o camiseta (polo permitido), jersey opcional. `auto` → libre.
 - Prendas pedidas en "Quiero ponerme…" y prendas con candado: **siempre** incluidas. "Otro" mantiene las bloqueadas.
 - Motivos de "Otro" (texto exacto): `muy formal` · `muy informal` · `colores` · `me lo puse hace poco` · `no me apetece esa prenda`.
 - Historial que recibe Claude: prendas puestas en los **últimos 7 días**, y los **últimos 30** conjuntos aceptados y rechazados con sus motivos.
@@ -60,6 +60,13 @@
 test("conjunto mínimo válido: camisa + chino + calzado", () => {
   expect(validateOutfit(["c", "p", "z"], wardrobe, { mode: "auto", lockedIds: [] })).toEqual({ ok: true });
 });
+test("un jersey solo, sin camiseta debajo, es válido", () => {
+  expect(validateOutfit(["jersey", "v", "z"], wardrobe, { mode: "auto", lockedIds: [] })).toEqual({ ok: true });
+});
+test("sin ninguna prenda de torso no es válido", () => {
+  expect(validateOutfit(["v", "z"], wardrobe, { mode: "auto", lockedIds: [] })).toEqual({ ok: false, problems: expect.arrayContaining(["falta una prenda de arriba o un jersey"]) });
+});
+test("formal acepta jersey de cuello alto sin camisa y rechaza camiseta", () => {});
 test("falta calzado y sobra un pantalón", () => {
   const r = validateOutfit(["c", "p", "v"], wardrobe, { mode: "auto", lockedIds: [] });
   expect(r).toEqual({ ok: false, problems: expect.arrayContaining(["falta calzado", "hay 2 prendas de abajo"]) });
@@ -114,6 +121,7 @@ test("missingForMode: sin calzado", () => {
   - `wardrobeBlock(garments: Garment[]): string`: una línea por prenda `id | tipo | descripción | colores | formalidad | estaciones`, ordenada por id para que la caché funcione.
   - `buildOutfitRequest(garments: Garment[], ctx: OutfitContext, model: string)`: devuelve los parámetros de `messages.parse`, con `system` = reglas fijas + bloque del armario con `cache_control: { type: "ephemeral" }` en el último bloque de sistema; un único mensaje de usuario con fecha, tiempo, modo, pedido, bloqueadas, excluidas, historial y `retryProblems` si hay; `output_config: { format: zodOutputFormat(OutfitOutputSchema), effort: "low" }`; `max_tokens: 4000`.
   - `interpretOutfit(resp): { ok: true; out: z.infer<typeof OutfitOutputSchema> } | { ok: false; error: string }` (`refusal` → `"Claude no ha podido proponer un conjunto"`; distinto de `end_turn` o sin `parsed_output` → `"Respuesta no válida"`).
+- `shared/styleProfile.ts` exporta `DEFAULT_STYLE_PROFILE: string`, el perfil de estilo de la sección "Perfil de estilo inicial" al final de este plan, copiado literal. Va en el `system` **antes** del bloque del armario. En el plan 3 lo sustituirá el perfil editable de la sección Estilo.
 - Reglas del prompt de sistema (copiar las del bloque Global Constraints): composición, estilos, trajes, bloqueadas, no repetir lo puesto en 7 días salvo que esté bloqueado, evitar combinaciones rechazadas y tener en cuenta sus motivos, adaptar capas y tejidos a la temperatura, y explicación breve en segunda persona.
 
 - [ ] **Step 1: Write the failing tests**
@@ -121,6 +129,7 @@ test("missingForMode: sin calzado", () => {
 ```ts
 test("wardrobeBlock lista una línea por prenda ordenada por id", () => {});
 test("buildOutfitRequest pone el armario en el system con cache_control y usa el modelo indicado", () => {});
+test("el system incluye DEFAULT_STYLE_PROFILE antes del armario", () => {});
 test("el mensaje de usuario incluye modo, pedido, bloqueadas, tiempo y problemas del reintento", () => {
   const p = buildOutfitRequest(wardrobe, { ...ctx, mode: "vaqueros", request: "zapatillas marrones", lockedIds: ["z"], retryProblems: ["falta calzado"] }, "claude-haiku-5-5");
   const text = JSON.stringify(p.messages);
@@ -351,3 +360,21 @@ test("shareOrDownload usa navigator.share cuando canShare acepta archivos", asyn
   - "Otro" con un motivo, bloquear una prenda y "Otro" otra vez, "Cambiar solo esta", "Me lo pongo", "Me puse otra cosa" y "Guardar imagen".
   - Esperado: los conjuntos solo usan sus prendas disponibles, las bloqueadas se mantienen y el gasto por conjunto es de céntimos o menos en `usage_ledger`.
 - [ ] **Step 5: Commit** `docs: puesta en marcha de conjuntos`
+
+---
+
+## Perfil de estilo inicial (de sus capturas de Instagram, 2026-11-08)
+
+Texto literal para `DEFAULT_STYLE_PROFILE`:
+
+```
+Estilo de Alejandro: masculino, limpio y "smart casual" moderno, de inspiración minimalista y algo clásica.
+- Paleta: neutros y tierra como base (crema, blanco roto, beige/arena, camel, tabaco, marrón chocolate), azul marino, grises (claro y antracita), negro y blanco. Acentos sobrios y de uno en uno: burdeos, verde oliva o botella, verde salvia, azul petróleo; el rojo, muy ocasional.
+- Combinaciones: 2–3 colores por conjunto, como mucho un color de acento. Contraste claro/oscuro entre la parte de arriba y la de abajo (p. ej. jersey crema con pantalón marino, jersey negro con vaquero claro). Conjuntos tono sobre tono en neutros también le gustan (beige, crema, tabaco).
+- Siluetas: ajustadas pero no apretadas; pantalón slim o recto, bajo limpio; punto fino que marca hombros.
+- Prendas que más usa en sus referencias: jersey de punto fino (cuello caja, cuello alto, medio cuello con cremallera), cárdigan con cremallera, polo (de punto, manga corta o larga), henley, camisa lisa u oxford, sobrecamisa; chaquetas cortas (Harrington, trucker de ante o pana, bomber, cazadora de piel). Abajo: vaqueros (azul medio o claro, gris, negro, blanco o crudo), chinos (beige, tabaco, oliva, crudo) y pantalón de pinzas de vestir.
+- Capas típicas: jersey o camiseta lisa + chaqueta corta; camisa bajo jersey de cuello caja con el cuello asomando; cuello alto solo o bajo chaqueta.
+- Calzado: zapatillas blancas de piel minimalistas (su favorito para vaqueros y chinos), botines chelsea (marrón de piel o ante, negro), zapato oxford/derby o mocasín marrón oscuro o burdeos para looks formales, zapatillas de ante en tonos tierra.
+- Detalles: prendas lisas, sin logos ni estampados llamativos (como mucho rayas finas o diplomática en pantalón de vestir). Cinturón de piel a juego con el calzado cuando lleva camisa o pantalón de vestir. Complementos discretos: reloj, gafas de sol, pulsera de cuero.
+- Evitar: chándal o ropa deportiva fuera de contexto, estampados grandes, mezclar muchos colores vivos, calzado deportivo técnico con pantalón de vestir.
+```
