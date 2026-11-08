@@ -10,7 +10,7 @@ export function App() {
   return (
     <div className="app">
       <main className="screen">
-        {tab === "inicio" && <InicioScreen />}
+        {tab === "inicio" && <InicioScreen onRequest={() => {}} />}
         {tab === "tienda" && <TiendaScreen />}
         {tab === "estilo" && <EstiloScreen />}
         {tab === "armario" && <ArmarioScreen />}
