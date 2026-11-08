@@ -84,7 +84,7 @@ test("'Cambiar solo esta' envía replaceId y previousOutfitId", async () => {
   await userEvent.click(screen.getByRole("button", { name: "zapatillas blancas" }));
   await userEvent.click(screen.getByRole("button", { name: "Cambiar solo esta" }));
   expect(await screen.findByText("Explicación o2")).toBeInTheDocument();
-  expect(api.generateOutfit).toHaveBeenLastCalledWith({ mode: "auto", weather: null, previousOutfitId: "o1", replaceId: "z" });
+  expect(api.generateOutfit).toHaveBeenLastCalledWith({ mode: "auto", weather: null, previousOutfitId: "o1", replaceId: "z", lockedIds: [] });
 });
 
 test("'Me lo pongo' registra el conjunto y muestra la confirmación", async () => {
@@ -151,4 +151,43 @@ test("si no se puede crear la imagen, se avisa", async () => {
   await screen.findByText("Explicación o1");
   await userEvent.click(screen.getByRole("button", { name: "Guardar imagen" }));
   expect(await screen.findByText("No se ha podido crear la imagen")).toBeInTheDocument();
+});
+
+test("si 'Cambiar solo esta' falla por el tope, se avisa y se mantiene el conjunto", async () => {
+  api.generateOutfit.mockRejectedValueOnce(new BudgetExceededError());
+  render(<OutfitScreen request={request} onBack={() => {}} />);
+  await screen.findByText("Explicación o1");
+  await userEvent.click(screen.getByRole("button", { name: "zapatillas blancas" }));
+  await userEvent.click(screen.getByRole("button", { name: "Cambiar solo esta" }));
+  expect(await screen.findByText("Has llegado al tope de gasto del mes")).toBeInTheDocument();
+  expect(screen.getByText("Explicación o1")).toBeInTheDocument();
+});
+
+test("'Cambiar solo esta' envía también los candados del usuario (sin la prenda a cambiar)", async () => {
+  api.generateOutfit.mockResolvedValueOnce({ outfit: outfit("o2", ["c", "p", "z2"]), garments: [shirt, chino, boots] });
+  render(<OutfitScreen request={request} onBack={() => {}} />);
+  await screen.findByText("Explicación o1");
+  await userEvent.click(screen.getByRole("button", { name: "Bloquear camisa blanca" }));
+  await userEvent.click(screen.getByRole("button", { name: "zapatillas blancas" }));
+  await userEvent.click(screen.getByRole("button", { name: "Cambiar solo esta" }));
+  await screen.findByText("Explicación o2");
+  expect(api.generateOutfit).toHaveBeenLastCalledWith({ mode: "auto", weather: null, previousOutfitId: "o1", replaceId: "z", lockedIds: ["c"] });
+});
+
+test("las fotos del collage se piden con crossOrigin para poder exportarlas", async () => {
+  render(<OutfitScreen request={request} onBack={() => {}} />);
+  await screen.findByText("Explicación o1");
+  expect(screen.getByRole("img", { name: "chino verde" })).toHaveAttribute("crossorigin", "anonymous");
+});
+
+test("si iOS no deja compartir tras preparar la imagen, ofrece un botón para compartirla ya preparada", async () => {
+  const blob = new Blob(["x"], { type: "image/png" });
+  img.renderCollage.mockResolvedValue(blob);
+  img.shareOrDownload.mockReset().mockRejectedValueOnce(new DOMException("no gesture", "NotAllowedError")).mockResolvedValueOnce(undefined);
+  render(<OutfitScreen request={request} onBack={() => {}} />);
+  await screen.findByText("Explicación o1");
+  await userEvent.click(screen.getByRole("button", { name: "Guardar imagen" }));
+  await userEvent.click(await screen.findByRole("button", { name: "Compartir imagen" }));
+  expect(img.shareOrDownload).toHaveBeenCalledTimes(2);
+  expect(img.shareOrDownload).toHaveBeenLastCalledWith(blob);
 });

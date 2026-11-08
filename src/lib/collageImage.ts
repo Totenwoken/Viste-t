@@ -60,10 +60,14 @@ export async function renderCollage(garments: Garment[]): Promise<Blob> {
   ctx.fillRect(0, 0, layout.w, layout.h);
 
   const byId = new Map(garments.map((g) => [g.id, g]));
-  for (const s of layout.slots) {
+  // Se cargan todas a la vez para que la imagen esté lista cuanto antes.
+  const images = await Promise.all(layout.slots.map((s) => {
     const url = byId.get(s.id)?.imageUrl;
-    if (!url) continue;
-    const img = await loadImage(url);
+    return url ? loadImage(url) : Promise.resolve(null);
+  }));
+  for (const [i, s] of layout.slots.entries()) {
+    const img = images[i];
+    if (!img) continue;
     const scale = Math.min(s.w / img.width, s.h / img.height);
     const w = img.width * scale;
     const h = img.height * scale;

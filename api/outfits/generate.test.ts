@@ -23,6 +23,7 @@ vi.mock("../../server/claude.js", () => ({
         state.prompts.push(p.messages[0].content);
         const next = state.replies.shift();
         if (!next) throw new Error("sin respuesta preparada");
+        if (next instanceof Error) throw next;
         return next;
       },
     },
@@ -194,4 +195,54 @@ test("body inválido → 400", async () => {
 
 test("sin código → 401", async () => {
   expect((await POST(req({ mode: "auto" }, "mal"))).status).toBe(401);
+});
+
+const prevOutfit = () =>
+  fake.tables.outfits.push({
+    id: "o1", user_id: "owner-1", mode: "auto", request: null, garment_ids: ["c", "p", "z"], locked_ids: [],
+    explanation: "", status: "proposed", reject_reason: null, worn_on: null, created_at: "2026-11-08T08:00:00Z",
+  });
+
+test("'Otro' (previousOutfitId sin replaceId) le dice a Claude cuál es el conjunto anterior", async () => {
+  prevOutfit();
+  state.replies.push(reply(["cam", "sc", "p", "z2"]));
+  const r = await POST(req({ mode: "auto", previousOutfitId: "o1" }));
+  expect(r.status).toBe(200);
+  expect(state.prompts[0]).toContain("Conjunto anterior (propón uno distinto): c, p, z");
+});
+
+test("'Otro' que repite exactamente el conjunto anterior provoca un reintento", async () => {
+  prevOutfit();
+  state.replies.push(reply(["c", "p", "z"]), reply(["cam", "p", "z2"]));
+  const body = await (await POST(req({ mode: "auto", previousOutfitId: "o1" }))).json();
+  expect(body.outfit.garmentIds).toEqual(["cam", "p", "z2"]);
+  expect(state.prompts[1]).toContain("es el mismo conjunto que el anterior");
+});
+
+test("tras 'Cambiar solo esta' solo quedan bloqueadas las que bloqueó el usuario", async () => {
+  prevOutfit();
+  state.replies.push(reply(["c", "p", "z2"]));
+  const body = await (await POST(req({ mode: "auto", previousOutfitId: "o1", replaceId: "z", lockedIds: ["c"] }))).json();
+  expect(body.outfit.lockedIds).toEqual(["c"]);
+  expect(fake.tables.outfits.at(-1)!.locked_ids).toEqual(["c"]);
+});
+
+test("una prenda pedida que se acaba de cambiar no se exige (requested_ids filtrados por el armario sin excluidas)", async () => {
+  prevOutfit();
+  state.replies.push(reply(["c", "p", "z2"], { requested_ids: ["z"] }));
+  const r = await POST(req({ mode: "auto", request: "zapatillas blancas", previousOutfitId: "o1", replaceId: "z" }));
+  expect(r.status).toBe(200);
+});
+
+test("si el SDK lanza un error al interpretar la respuesta, cuenta como intento fallido y se reintenta", async () => {
+  state.replies.push(new Error("Failed to parse structured output"), reply(["c", "p", "z"]));
+  const r = await POST(req({ mode: "auto" }));
+  expect(r.status).toBe(200);
+  expect(state.prompts).toHaveLength(2);
+});
+
+test("si las dos llamadas lanzan error → 422 legible, no un 500", async () => {
+  state.replies.push(new Error("boom"), new Error("boom"));
+  const r = await POST(req({ mode: "auto" }));
+  expect(r.status).toBe(422);
 });

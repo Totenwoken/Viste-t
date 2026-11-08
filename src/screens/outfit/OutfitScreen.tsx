@@ -31,6 +31,7 @@ export function OutfitScreen({ request, onBack }: Props) {
   const [askReasonFor, setAskReasonFor] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [pickingOther, setPickingOther] = useState(false);
+  const [readyImage, setReadyImage] = useState<Blob | null>(null);
   const started = useRef(false);
 
   const base: GenerateBody = { mode: request.mode, weather: request.weather, ...(request.request ? { request: request.request } : {}) };
@@ -53,7 +54,8 @@ export function OutfitScreen({ request, onBack }: Props) {
       }
     } catch (e) {
       setError(messageFor(e));
-      if (!previous) setPhase("failed");
+      // Solo la primera carga deja la pantalla de error; si ya hay un conjunto, se mantiene.
+      if (!outfit) setPhase("failed");
     } finally {
       setBusy(false);
     }
@@ -75,7 +77,7 @@ export function OutfitScreen({ request, onBack }: Props) {
 
   async function swapOne(id: string) {
     if (!outfit) return;
-    await generate({ previousOutfitId: outfit.id, replaceId: id }, null);
+    await generate({ previousOutfitId: outfit.id, replaceId: id, lockedIds: locked.filter((x) => x !== id) }, null);
   }
 
   async function wear() {
@@ -101,15 +103,29 @@ export function OutfitScreen({ request, onBack }: Props) {
     }
   }
 
-  async function saveImage() {
-    setError(null);
+  async function share(blob: Blob) {
     try {
-      await shareOrDownload(await renderCollage(garments));
+      await shareOrDownload(blob);
+      setReadyImage(null);
     } catch (e) {
       // Cancelar el menú de compartir no es un error.
-      if (e instanceof DOMException && e.name === "AbortError") return;
+      if (e instanceof DOMException && e.name === "AbortError") return setReadyImage(null);
+      // iOS solo deja compartir justo después de un toque: si preparar la imagen tardó, se ofrece otro botón.
+      if (e instanceof DOMException && e.name === "NotAllowedError") return setReadyImage(blob);
       setError("No se ha podido crear la imagen");
     }
+  }
+
+  async function saveImage() {
+    setError(null);
+    let blob: Blob;
+    try {
+      blob = await renderCollage(garments);
+    } catch {
+      setError("No se ha podido crear la imagen");
+      return;
+    }
+    await share(blob);
   }
 
   function sendReason(reason: RejectReason) {
@@ -189,6 +205,9 @@ export function OutfitScreen({ request, onBack }: Props) {
         <button type="button" className="link" onClick={() => setPickingOther(true)}>Me puse otra cosa</button>
         <button type="button" className="link" onClick={saveImage}>Guardar imagen</button>
       </div>
+      {readyImage && (
+        <button type="button" className="btn primary" onClick={() => void share(readyImage)}>Compartir imagen</button>
+      )}
     </section>
   );
 }

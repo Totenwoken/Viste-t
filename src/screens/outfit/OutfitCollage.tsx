@@ -18,7 +18,7 @@ function Piece({ g, locked, onToggleLock, onSelect }: { g: Garment; locked: bool
   return (
     <div className="piece">
       <button type="button" className="piece-img" onClick={onSelect}>
-        {g.imageUrl ? <img src={g.imageUrl} alt={name} /> : <span>{name}</span>}
+        {g.imageUrl ? <img src={g.imageUrl} alt={name} crossOrigin="anonymous" /> : <span>{name}</span>}
       </button>
       <button
         type="button"

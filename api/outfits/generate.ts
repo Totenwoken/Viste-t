@@ -39,60 +39,83 @@ export async function POST(req: Request): Promise<Response> {
   const available = await loadAvailable();
   const availableIds = new Set(available.map((g) => g.id));
 
-  // Bloqueadas: las del cuerpo, o el conjunto anterior menos la prenda a cambiar.
-  let lockedIds = [...new Set(body.lockedIds ?? [])];
+  // userLocked: lo que el usuario bloqueó (se guarda y se devuelve).
+  // pinned: lo que este conjunto debe mantener (en "Cambiar solo esta", todo el anterior menos la prenda a cambiar).
+  let userLocked = [...new Set(body.lockedIds ?? [])];
+  let pinned = [...userLocked];
   const excludedIds: string[] = [];
-  if (body.replaceId && body.previousOutfitId) {
+  let previousIds: string[] | undefined;
+  if (body.previousOutfitId) {
     const previous = await loadOutfit(body.previousOutfitId);
-    if (!previous) return json(404, { error: "not_found" });
-    lockedIds = previous.garment_ids.filter((id) => id !== body.replaceId);
-    excludedIds.push(body.replaceId);
-    await db().from("outfit_swaps").insert({ user_id: ownerId(), outfit_id: previous.id, garment_id: body.replaceId });
+    if (body.replaceId) {
+      if (!previous) return json(404, { error: "not_found" });
+      pinned = previous.garment_ids.filter((id) => id !== body.replaceId);
+      userLocked = userLocked.filter((id) => id !== body.replaceId);
+      excludedIds.push(body.replaceId);
+    } else if (previous) {
+      previousIds = previous.garment_ids;
+    }
   }
 
-  const gone = lockedIds.filter((id) => !availableIds.has(id));
+  const gone = [...new Set([...pinned, ...userLocked])].filter((id) => !availableIds.has(id));
   if (gone.length) {
     const known = new Map((await loadOwnGarments(gone)).map((g) => [g.id, g]));
     for (const id of gone) {
       const g = known.get(id);
       notes.push(g ? `«${g.description ?? "una prenda"}» ya no está disponible y la he quitado` : "Una prenda bloqueada ya no está en tu armario");
     }
-    lockedIds = lockedIds.filter((id) => availableIds.has(id));
+    pinned = pinned.filter((id) => availableIds.has(id));
+    userLocked = userLocked.filter((id) => availableIds.has(id));
   }
 
   const pool = available.filter((g) => !excludedIds.includes(g.id));
+  const poolIds = new Set(pool.map((g) => g.id));
   const missing = missingForMode(pool, body.mode);
   if (missing) return json(422, { error: "not_enough", message: missing });
 
   const overBudget = await checkBudget();
   if (overBudget) return overBudget;
 
+  if (body.replaceId && body.previousOutfitId) {
+    await db().from("outfit_swaps").insert({ user_id: ownerId(), outfit_id: body.previousOutfitId, garment_id: body.replaceId });
+  }
+
   const today = todayMadrid();
   const { wornRecently, history } = await loadHistory(today);
-  const ctx: OutfitContext = { today, weather, mode: body.mode, request, lockedIds, excludedIds, wornRecently, history };
+  const ctx: OutfitContext = { today, weather, mode: body.mode, request, lockedIds: pinned, excludedIds, wornRecently, history, previousIds };
   const model = modelFor("outfit");
+  const sameAsPrevious = (ids: string[]) =>
+    !!previousIds && ids.length === previousIds.length && ids.every((id) => previousIds!.includes(id));
 
   let result: OutfitOutput | null = null;
   let retryProblems: string[] | undefined;
   for (let attempt = 0; attempt < 2 && !result; attempt++) {
-    // El armario completo va en el prompt (system estable para la caché); las excluidas se indican aparte y la validación usa pool.
-    const resp = await anthropic().messages.parse(buildOutfitRequest(available, { ...ctx, retryProblems }, model));
-    await recordUsage("outfit", model, resp.usage);
-    const interpreted = interpretOutfit(resp);
+    let interpreted: ReturnType<typeof interpretOutfit>;
+    try {
+      // El armario completo va en el prompt (system estable para la caché); las excluidas se indican aparte y la validación usa pool.
+      const resp = await anthropic().messages.parse(buildOutfitRequest(available, { ...ctx, retryProblems }, model));
+      await recordUsage("outfit", model, resp.usage);
+      interpreted = interpretOutfit(resp);
+    } catch {
+      // El SDK lanza si la respuesta no se puede interpretar o si la API falla tras sus reintentos.
+      interpreted = { ok: false, error: "Respuesta no válida" };
+    }
     if (!interpreted.ok) {
       retryProblems = [interpreted.error];
       continue;
     }
     const out = interpreted.out;
-    const requested = out.requested_ids.filter((id) => availableIds.has(id));
-    const check = validateOutfit(out.garment_ids, pool, { mode: body.mode, lockedIds: [...lockedIds, ...requested] });
-    if (check.ok) result = { ...out, requested_ids: requested };
-    else retryProblems = check.problems;
+    const requested = out.requested_ids.filter((id) => poolIds.has(id));
+    const check = validateOutfit(out.garment_ids, pool, { mode: body.mode, lockedIds: [...pinned, ...requested] });
+    const problems = check.ok ? [] : [...check.problems];
+    if (sameAsPrevious(out.garment_ids)) problems.push("es el mismo conjunto que el anterior");
+    if (problems.length === 0) result = { ...out, requested_ids: requested };
+    else retryProblems = problems;
   }
   if (!result) return json(422, INVALID);
 
   if (result.missing_request) notes.push(`No he encontrado «${result.missing_request}» en tu armario`);
-  const finalLocked = [...new Set([...lockedIds, ...result.requested_ids])];
+  const finalLocked = [...new Set([...userLocked, ...result.requested_ids])];
 
   const { data: row, error } = await db()
     .from("outfits")

@@ -21,6 +21,8 @@ export interface OutfitContext {
   wornRecently: string[];
   history: HistoryItem[];
   retryProblems?: string[];
+  /** Conjunto al que sustituye "Otro": hay que proponer uno distinto. */
+  previousIds?: string[];
 }
 
 export const OutfitOutputSchema = z.object({
@@ -86,6 +88,7 @@ function describeRequest(ctx: OutfitContext, byId: Map<string, Garment>): string
   lines.push(`Estilo pedido: ${MODE_LABEL[ctx.mode]} [${ctx.mode}]`);
   if (ctx.request) lines.push(`Quiero ponerme: ${ctx.request}`);
   if (ctx.lockedIds.length) lines.push(`Prendas bloqueadas (inclúyelas): ${ctx.lockedIds.map(desc).join("; ")}`);
+  if (ctx.previousIds?.length) lines.push(`Conjunto anterior (propón uno distinto): ${ctx.previousIds.join(", ")}`);
   if (ctx.excludedIds.length) lines.push(`Prendas excluidas (no las uses): ${ctx.excludedIds.map(desc).join("; ")}`);
   if (ctx.wornRecently.length) lines.push(`Puestas en los últimos 7 días: ${ctx.wornRecently.join(", ")}`);
   if (ctx.history.length) {

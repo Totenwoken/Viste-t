@@ -15,17 +15,20 @@ export function App() {
   return (
     <div className="app">
       <main className="screen">
-        {tab === "inicio" &&
-          (request ? (
+        {/* El resultado sigue montado (oculto) en otras pestañas: al volver no se genera otro ni se pierden los candados. */}
+        {request && (
+          <div hidden={tab !== "inicio"}>
             <OutfitScreen key={requestKey} request={request} onBack={() => setRequest(null)} />
-          ) : (
-            <InicioScreen
-              onRequest={(r) => {
-                setRequest(r);
-                setRequestKey((k) => k + 1);
-              }}
-            />
-          ))}
+          </div>
+        )}
+        {tab === "inicio" && !request && (
+          <InicioScreen
+            onRequest={(r) => {
+              setRequest(r);
+              setRequestKey((k) => k + 1);
+            }}
+          />
+        )}
         {tab === "tienda" && <TiendaScreen />}
         {tab === "estilo" && <EstiloScreen />}
         {tab === "armario" && <ArmarioScreen />}
