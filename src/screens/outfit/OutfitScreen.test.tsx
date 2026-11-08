@@ -130,3 +130,25 @@ test("'Me puse otra cosa' guarda las prendas elegidas", async () => {
   expect(api.wearOther).toHaveBeenCalledWith(["c", "z2"]);
   expect(await screen.findByText("¡Listo! Que tengas un buen día")).toBeInTheDocument();
 });
+
+const img = vi.hoisted(() => ({ renderCollage: vi.fn(), shareOrDownload: vi.fn() }));
+vi.mock("../../lib/collageImage", () => img);
+
+test("'Guardar imagen' compone el collage y lo comparte", async () => {
+  const blob = new Blob(["x"], { type: "image/png" });
+  img.renderCollage.mockResolvedValue(blob);
+  img.shareOrDownload.mockResolvedValue(undefined);
+  render(<OutfitScreen request={request} onBack={() => {}} />);
+  await screen.findByText("Explicación o1");
+  await userEvent.click(screen.getByRole("button", { name: "Guardar imagen" }));
+  expect(img.renderCollage).toHaveBeenCalledWith([shirt, chino, shoes]);
+  expect(img.shareOrDownload).toHaveBeenCalledWith(blob);
+});
+
+test("si no se puede crear la imagen, se avisa", async () => {
+  img.renderCollage.mockRejectedValue(new Error("tainted"));
+  render(<OutfitScreen request={request} onBack={() => {}} />);
+  await screen.findByText("Explicación o1");
+  await userEvent.click(screen.getByRole("button", { name: "Guardar imagen" }));
+  expect(await screen.findByText("No se ha podido crear la imagen")).toBeInTheDocument();
+});

@@ -4,6 +4,7 @@ import { REJECT_REASONS, type Outfit, type RejectReason } from "../../../shared/
 import { BudgetExceededError } from "../../lib/api";
 import { generateOutfit, OutfitError, rejectOutfit, wearOther, wearOutfit, type GenerateBody } from "../../lib/outfitsApi";
 import type { OutfitRequest } from "../InicioScreen";
+import { renderCollage, shareOrDownload } from "../../lib/collageImage";
 import { OutfitCollage } from "./OutfitCollage";
 import { WearOtherPicker } from "./WearOtherPicker";
 
@@ -100,6 +101,17 @@ export function OutfitScreen({ request, onBack }: Props) {
     }
   }
 
+  async function saveImage() {
+    setError(null);
+    try {
+      await shareOrDownload(await renderCollage(garments));
+    } catch (e) {
+      // Cancelar el menú de compartir no es un error.
+      if (e instanceof DOMException && e.name === "AbortError") return;
+      setError("No se ha podido crear la imagen");
+    }
+  }
+
   function sendReason(reason: RejectReason) {
     if (askReasonFor) void rejectOutfit(askReasonFor, reason).catch(() => {});
     setAskReasonFor(null);
@@ -173,7 +185,10 @@ export function OutfitScreen({ request, onBack }: Props) {
         </div>
       )}
 
-      <button type="button" className="link" onClick={() => setPickingOther(true)}>Me puse otra cosa</button>
+      <div className="row-actions outfit-links">
+        <button type="button" className="link" onClick={() => setPickingOther(true)}>Me puse otra cosa</button>
+        <button type="button" className="link" onClick={saveImage}>Guardar imagen</button>
+      </div>
     </section>
   );
 }

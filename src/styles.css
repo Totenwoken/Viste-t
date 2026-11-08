@@ -120,3 +120,4 @@ fieldset.field legend { padding: 0 4px; }
 .reasons .chips { flex-wrap: wrap; }
 .tile.selected { border-color: var(--ink); box-shadow: 0 0 0 2px var(--ink) inset; }
 .sticky-actions { position: sticky; bottom: calc(70px + env(safe-area-inset-bottom)); background: var(--bg); padding: 10px 0; }
+.outfit-links { justify-content: space-between; margin-top: 14px; }
