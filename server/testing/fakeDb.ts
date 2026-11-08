@@ -2,29 +2,50 @@
 type Row = Record<string, unknown>;
 type Op = "select" | "update" | "delete" | "insert";
 
+let autoId = 0;
+
 class FakeQuery implements PromiseLike<{ data: unknown; error: null }> {
-  private filters: [string, unknown][] = [];
+  private filters: ((r: Row) => boolean)[] = [];
+  private max = Infinity;
+  private sortBy: { col: string; asc: boolean } | null = null;
   constructor(private rows: Row[], private op: Op, private payload?: Row) {}
   select() {
     return this;
   }
   eq(col: string, val: unknown) {
-    this.filters.push([col, val]);
+    this.filters.push((r) => r[col] === val);
     return this;
   }
-  order() {
+  in(col: string, vals: unknown[]) {
+    this.filters.push((r) => vals.includes(r[col]));
+    return this;
+  }
+  gte(col: string, val: string | number) {
+    this.filters.push((r) => (r[col] as string | number) >= val);
+    return this;
+  }
+  order(col?: string, opts?: { ascending?: boolean }) {
+    if (col) this.sortBy = { col, asc: opts?.ascending ?? true };
+    return this;
+  }
+  limit(n: number) {
+    this.max = n;
     return this;
   }
   private exec(): Row[] {
     if (this.op === "insert") {
-      const row = { ...this.payload };
+      const row = { id: `auto-${++autoId}`, created_at: new Date().toISOString(), ...this.payload };
       this.rows.push(row);
-      return [row];
+      return [{ ...row }];
     }
-    const matched = this.rows.filter((r) => this.filters.every(([c, v]) => r[c] === v));
+    let matched = this.rows.filter((r) => this.filters.every((f) => f(r)));
     if (this.op === "update") matched.forEach((r) => Object.assign(r, this.payload));
     if (this.op === "delete") matched.forEach((r) => this.rows.splice(this.rows.indexOf(r), 1));
-    return matched.map((r) => ({ ...r }));
+    if (this.sortBy) {
+      const { col, asc } = this.sortBy;
+      matched = [...matched].sort((a, b) => ((a[col] as string) < (b[col] as string) ? -1 : 1) * (asc ? 1 : -1));
+    }
+    return matched.slice(0, this.max).map((r) => ({ ...r }));
   }
   async maybeSingle() {
     return { data: this.exec()[0] ?? null, error: null };

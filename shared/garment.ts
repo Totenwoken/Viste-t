@@ -12,7 +12,9 @@ export type Layer = "top" | "mid" | "bottom" | "outer" | "shoes" | "accessory";
 
 const LAYER: Record<GarmentType, Layer> = {
   camiseta: "top", camisa: "top", polo: "top",
-  jersey: "mid", sudadera: "mid", sobrecamisa: "mid",
+  jersey: "mid", sudadera: "mid",
+  // La sobrecamisa se lleva como capa exterior (sobre camiseta o jersey fino).
+  sobrecamisa: "outer",
   pantalon_vaquero: "bottom", pantalon_chino: "bottom", pantalon_traje: "bottom", pantalon_otro: "bottom", bermuda: "bottom",
   abrigo: "outer", cazadora: "outer", americana: "outer", chaqueta_traje: "outer",
   calzado: "shoes",

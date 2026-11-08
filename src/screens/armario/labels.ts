@@ -45,7 +45,7 @@ export const LAYER_LABEL: Record<Layer, string> = {
   top: "Arriba",
   mid: "Jerséis",
   bottom: "Abajo",
-  outer: "Abrigo",
+  outer: "Chaquetas y abrigos",
   shoes: "Calzado",
   accessory: "Complementos",
 };

@@ -22,3 +22,7 @@ test("GarmentPatchSchema acepta un cambio de disponibilidad y rechaza campos des
   expect(GarmentPatchSchema.safeParse({ availability: "lavanderia" }).success).toBe(true);
   expect(GarmentPatchSchema.safeParse({ status: "ready" }).success).toBe(false);
 });
+
+test("la sobrecamisa es capa exterior", () => {
+  expect(layerOf("sobrecamisa")).toBe("outer");
+});
