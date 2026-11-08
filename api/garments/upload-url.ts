@@ -19,10 +19,10 @@ export async function POST(req: Request): Promise<Response> {
     .eq("id", body.data.garmentId)
     .eq("user_id", ownerId())
     .maybeSingle();
-  if (error) return json(500, { error: "db" });
+  if (error) return json(500, { error: "db", detail: error.message });
   if (!row?.image_path) return json(404, { error: "not_found" });
 
   const signed = await db().storage.from(BUCKET).createSignedUploadUrl(row.image_path, { upsert: true });
-  if (signed.error || !signed.data) return json(500, { error: "storage" });
+  if (signed.error || !signed.data) return json(500, { error: "storage", detail: signed.error?.message ?? null });
   return json(200, { uploadUrl: signed.data.signedUrl });
 }

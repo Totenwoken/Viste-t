@@ -48,5 +48,5 @@ export async function uploadToSignedUrl(url: string, blob: Blob): Promise<void> 
     headers: { "content-type": blob.type || "image/webp" },
     body: blob,
   });
-  if (!res.ok) throw new Error(`Subida fallida (${res.status})`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${(await res.text().catch(() => "")).slice(0, 120)}`);
 }

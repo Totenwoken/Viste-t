@@ -48,7 +48,7 @@ export async function POST(req: Request): Promise<Response> {
   if (overBudget) return overBudget;
 
   const file = await db().storage.from(BUCKET).download((row as GarmentRow).image_path ?? "");
-  if (file.error || !file.data) return json(409, { error: "image_missing" });
+  if (file.error || !file.data) return json(409, { error: "image_missing", detail: file.error?.message ?? null });
   const base64 = Buffer.from(await file.data.arrayBuffer()).toString("base64");
   const mediaType = (file.data.type || "image/webp") as TaggingMediaType;
 

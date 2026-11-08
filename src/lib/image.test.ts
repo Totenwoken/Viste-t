@@ -32,3 +32,10 @@ test("uploadToSignedUrl lanza si la subida falla", async () => {
   vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 500 })));
   await expect(uploadToSignedUrl("https://up", new Blob(["x"], { type: "image/webp" }))).rejects.toThrow();
 });
+
+test("uploadToSignedUrl incluye el estado y la respuesta del servidor en el error", async () => {
+  vi.stubGlobal("fetch", vi.fn(async () => new Response('{"error":"InvalidJWT"}', { status: 400 })));
+  await expect(uploadToSignedUrl("https://up", new Blob(["x"], { type: "image/webp" }))).rejects.toThrow(
+    'HTTP 400: {"error":"InvalidJWT"}',
+  );
+});

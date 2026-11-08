@@ -127,7 +127,7 @@ test("retry(id) de un item en error lo vuelve a procesar desde donde falló", as
   });
   const q = createUploadQueue(deps);
   await q.add([photo("a")]);
-  expect(q.items()[0]).toMatchObject({ status: "error", error: "No se ha podido subir. Reintenta." });
+  expect(q.items()[0]).toMatchObject({ status: "error", error: "Al subir la foto: red" });
   fail = false;
   await q.retry(q.items()[0].id);
   expect(statuses(q.items())).toEqual(["done"]);
@@ -218,4 +218,26 @@ test("sin conexión (fetch TypeError) la cola se pausa sin marcar errores y sigu
   offline = false;
   window.dispatchEvent(new Event("online"));
   await vi.waitFor(() => expect(statuses(q.items())).toEqual(["done", "done"]));
+});
+
+test("el error indica el paso que falló y el detalle", async () => {
+  const deps = fakeDeps({
+    create: vi.fn(async () => {
+      throw new Error("HTTP 500: db");
+    }),
+  });
+  const q = createUploadQueue(deps);
+  await q.add([photo("a")]);
+  expect(q.items()[0].error).toBe("Al crear la prenda: HTTP 500: db");
+});
+
+test("un fallo al quitar el fondo se identifica como tal", async () => {
+  const deps = fakeDeps({
+    prepare: vi.fn(async () => {
+      throw new Error("no se pudo cargar el modelo");
+    }),
+  });
+  const q = createUploadQueue(deps);
+  await q.add([photo("a")]);
+  expect(q.items()[0].error).toBe("Al preparar la foto: no se pudo cargar el modelo");
 });

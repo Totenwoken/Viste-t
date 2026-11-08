@@ -40,6 +40,18 @@ export interface QueueDeps {
   store: QueueStore;
 }
 
+/** Paso en el que está un elemento (processItem lo avanza paso a paso), para mensajes de error. */
+function stageLabel(item: QueueItem): string {
+  if (item.status === "queued") return item.prepared ? "Al crear la prenda" : "Al preparar la foto";
+  if (item.status === "created") return "Al subir la foto";
+  return "Al analizar la prenda";
+}
+
+function errorDetail(e: unknown): string {
+  const msg = e instanceof Error ? e.message : String(e);
+  return msg.slice(0, 160) || "error desconocido";
+}
+
 const QUEUE_KEY = "vistet.queue";
 const blobKey = (id: string) => `vistet.blob.${id}`;
 
@@ -118,7 +130,7 @@ export function createUploadQueue(deps: QueueDeps) {
           notify();
           return;
         }
-        const message = e instanceof ImageDecodeError ? e.message : "No se ha podido subir. Reintenta.";
+        const message = e instanceof ImageDecodeError ? e.message : `${stageLabel(next)}: ${errorDetail(e)}`;
         // next.status es la etapa en la que falló (processItem la avanza paso a paso).
         await update(next, { status: "error", error: message, failedAt: next.status as NonNullable<QueueItem["failedAt"]> });
       }
@@ -196,7 +208,7 @@ export function createUploadQueue(deps: QueueDeps) {
 export type UploadQueue = ReturnType<typeof createUploadQueue>;
 
 async function readJson<T>(res: Response): Promise<T> {
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${(await res.text().catch(() => "")).slice(0, 120)}`);
   return (await res.json()) as T;
 }
 

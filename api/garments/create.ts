@@ -16,10 +16,10 @@ export async function POST(req: Request): Promise<Response> {
     .insert({ id: garmentId, user_id: ownerId(), status: "pending", image_path: imagePath })
     .select()
     .single();
-  if (error) return json(500, { error: "db" });
+  if (error) return json(500, { error: "db", detail: error.message });
 
   const signed = await db().storage.from(BUCKET).createSignedUploadUrl(imagePath);
-  if (signed.error || !signed.data) return json(500, { error: "storage" });
+  if (signed.error || !signed.data) return json(500, { error: "storage", detail: signed.error?.message ?? null });
 
   return json(201, { garmentId, uploadUrl: signed.data.signedUrl });
 }
