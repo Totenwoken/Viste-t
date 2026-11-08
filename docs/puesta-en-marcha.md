@@ -59,3 +59,18 @@ Se hace una sola vez. Calcula una hora. Necesitas tres cuentas gratuitas (Supaba
 - **"Código incorrecto"**: revisa `ACCESS_CODE` en Vercel (y vuelve a desplegar tras cambiarla).
 - **Las fotos se quedan en "Reintentar" al subir**: avísame. Puede que Supabase pida una cabecera extra para la subida; es un ajuste pequeño.
 - **Las fichas salen flojas**: en Vercel cambia `MODEL_TAGGING` a `claude-sonnet-5-5`, vuelve a desplegar y reintenta. Cuesta más, pero es más preciso.
+
+---
+
+## Actualización: Conjuntos (parte 2)
+
+1. **Supabase → SQL Editor → New query**: pega todo el contenido de [`supabase/migrations/0002_outfits.sql`](../supabase/migrations/0002_outfits.sql) y pulsa **Run**. Debe salir *"Success. No rows returned"*.
+2. (Opcional) En Vercel puedes añadir `MODEL_OUTFIT` = `claude-sonnet-5-5` si los conjuntos de Haiku no te convencen. Si no la añades, se usa `claude-haiku-5-5`.
+3. Abre la app en el iPhone (ciérrala y ábrela dos veces para que cargue la versión nueva).
+4. Prueba:
+   - **¿Qué me pongo hoy?** y cada estilo: Vaqueros, Formal, Formal traje, Chinos.
+   - **Quiero ponerme…** por ejemplo "sobrecamisa verde".
+   - **Otro ↻** y elige un motivo; **bloquea 🔒** una prenda y pulsa Otro otra vez (debe mantenerse).
+   - Toca una prenda → **Cambiar solo esta**.
+   - **Me lo pongo ✓**, **Me puse otra cosa** y **Guardar imagen**.
+5. La primera vez el iPhone preguntará si la app puede usar tu ubicación (es para el tiempo). Si dices que no, toca **Añadir ciudad** en Inicio.
