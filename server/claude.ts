@@ -1,9 +1,9 @@
 import Anthropic from "@anthropic-ai/sdk";
 
-export type Task = "tagging";
+export type Task = "tagging" | "outfit";
 
 const DEFAULT_MODEL = "claude-haiku-5-5";
-const ENV_BY_TASK: Record<Task, string> = { tagging: "MODEL_TAGGING" };
+const ENV_BY_TASK: Record<Task, string> = { tagging: "MODEL_TAGGING", outfit: "MODEL_OUTFIT" };
 
 let client: Anthropic | null = null;
 
