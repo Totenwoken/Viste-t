@@ -116,3 +116,13 @@ async function loadOwnRowsPaths(ids: string[]): Promise<Map<string, string | nul
   const { data } = await db().from("garments").select("id, image_path").eq("user_id", ownerId()).in("id", ids);
   return new Map(((data ?? []) as { id: string; image_path: string | null }[]).map((r) => [r.id, r.image_path]));
 }
+
+/** Solo un conjunto "puesto" por día: el anterior de hoy vuelve a "propuesto". */
+export async function unwearToday(today: string): Promise<void> {
+  await db()
+    .from("outfits")
+    .update({ status: "proposed", worn_on: null })
+    .eq("user_id", ownerId())
+    .eq("status", "worn")
+    .eq("worn_on", today);
+}
