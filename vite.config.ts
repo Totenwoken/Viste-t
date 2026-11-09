@@ -25,10 +25,12 @@ export default defineConfig({
         navigateFallbackDenylist: [/^\/api\//],
         // El modelo para quitar fondos (wasm, ~24 MB) no se precachea: se descarga la primera vez que se usa.
         globPatterns: ["**/*.{js,css,html,png,svg,ico,webmanifest}"],
-        globIgnores: ["**/ort*"],
+        globIgnores: ["**/ort*", "**/bgWorker-*"],
       },
     }),
   ],
+  // El worker de quitar fondos usa imports dinámicos: necesita formato de módulo.
+  worker: { format: "es" },
   test: {
     globals: true,
     environment: "jsdom",

@@ -1,3 +1,4 @@
+import { createBackgroundRemover, type BgWorkerLike } from "./bgRemover";
 export class ImageDecodeError extends Error {
   constructor() {
     super("No se puede leer esta foto");
@@ -32,11 +33,13 @@ export async function compressImage(file: Blob, max = 1024): Promise<Blob> {
   return blob;
 }
 
-/** Quita el fondo en el propio móvil. El modelo se descarga la primera vez que se usa. */
-export async function removeBackground(img: Blob): Promise<Blob> {
-  const { removeBackground: run } = await import("@imgly/background-removal");
-  return run(img, { output: { format: "image/webp", quality: 0.85 } });
-}
+/**
+ * Quita el fondo en un Web Worker (no bloquea la pantalla). El modelo se descarga la primera vez que se usa.
+ * Si falla o tarda demasiado, devuelve la foto tal cual para que la subida siga.
+ */
+export const removeBackground = createBackgroundRemover(
+  () => new Worker(new URL("./bgWorker.ts", import.meta.url), { type: "module" }) as unknown as BgWorkerLike,
+);
 
 export async function prepareGarmentImage(file: Blob): Promise<Blob> {
   return removeBackground(await compressImage(file));
